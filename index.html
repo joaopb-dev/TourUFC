@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TourUFC — mapa do campus de Sobral</title>
+<meta name="description" content="Mapa interativo do campus da UFC em Sobral: departamentos, laboratórios, serviços, bolsas e áreas de lazer.">
+<meta name="color-scheme" content="light">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Três zonas do layout (Seção 3.1 do plano) -->
+<div id="app">
+
+  <!-- Zona esquerda: busca, filtros e lista de locais -->
+  <aside id="barra-lateral">
+    <div class="marca">
+      <img src="assets/logo.png" alt="TourUFC" width="171" height="38">
+    </div>
+
+    <div class="campo-busca">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      <input id="campo-busca" type="search" placeholder="Pesquisar local..." autocomplete="off" aria-label="Pesquisar local">
+    </div>
+
+    <div id="chips" class="chips" role="group" aria-label="Filtrar por categoria"></div>
+
+    <ul id="lista-locais" class="lista"></ul>
+    <p id="lista-vazia" class="aviso" hidden>Nenhum resultado encontrado</p>
+    <p id="lista-erro" class="aviso" hidden></p>
+  </aside>
+
+  <!-- Zona central: mapa, pins e controles -->
+  <main id="zona-mapa">
+    <canvas id="canvas-mapa"></canvas>
+
+    <button type="button" id="abrir-gaveta" class="abrir-gaveta" aria-label="Abrir busca e lista de locais">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+
+    <div id="camada-pins" class="camada-pins"></div>
+
+    <!-- Botões registrados por js/modulos/controles-mapa.js -->
+    <div id="controles-mapa" class="controles-mapa"></div>
+    <div id="notificacoes" class="notificacoes"></div>
+    <div id="seletor-area" class="seletor-area"></div>
+
+    <div id="aviso-mapa" class="aviso-mapa" hidden>
+      <p></p>
+      <button type="button" id="recarregar">Recarregar a página</button>
+    </div>
+  </main>
+
+  <!-- Zona direita: ficha do órgão -->
+  <aside id="ficha" hidden>
+    <button type="button" id="fechar-ficha" class="fechar-ficha" aria-label="Fechar ficha">&times;</button>
+    <div id="ficha-corpo"></div>
+  </aside>
+</div>
+
+<!-- Regra 7 da Seção 2.1: sem WebGL, mensagem e nada mais é carregado -->
+<div id="erro-webgl" class="erro-total" hidden>
+  <p>Seu navegador não é compatível com o Tour UFC</p>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,547 @@
+/* TourUFC — estilos. Cores amostradas do design no Figma (Seção 3 do plano). */
+
+:root {
+  --verde: #5fb201;          /* chips ativos, itens selecionados, faixas */
+  --verde-escuro: #14511f;   /* marca "UFC" */
+  --verde-borda: #3fc14e;    /* separadores de coluna e molduras */
+  --vermelho: #ed2118;       /* badges de novidade */
+  --teal: #006c84;           /* links de contato */
+  --fundo: #dfdfdf;          /* trilho do mapa */
+  --lateral: #d6dad9;        /* barra lateral */
+  --cartao: #ffffff;
+  --texto: #101010;
+  --texto-suave: #4a4a4a;
+  --raio: 12px;
+  --sombra: 0 2px 6px rgba(0, 0, 0, .16);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--texto);
+  background: var(--fundo);
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- barra lateral */
+
+#barra-lateral {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--lateral);
+  padding: 14px 12px 0;
+  overflow: hidden;
+}
+
+.marca { padding: 4px 4px 12px; }
+.marca img { display: block; height: 34px; width: auto; }
+
+.campo-busca {
+  position: relative;
+  margin-bottom: 12px;
+}
+.campo-busca svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: var(--texto-suave);
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.campo-busca input {
+  width: 100%;
+  padding: 9px 10px 9px 32px;
+  border: 1px solid #c3c8c7;
+  border-radius: 8px;
+  background: var(--cartao);
+  font-size: 14px;
+  color: var(--texto);
+}
+.campo-busca input:focus {
+  outline: 2px solid var(--verde);
+  outline-offset: 1px;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border: 1px solid #c3c8c7;
+  border-radius: 999px;
+  background: var(--cartao);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto);
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+}
+.chip.mais { padding-inline: 11px; }
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0 2px 14px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.item-lista {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cartao);
+  box-shadow: var(--sombra);
+  text-align: left;
+  cursor: pointer;
+}
+.item-lista:hover { filter: brightness(.97); }
+.item-lista[aria-current="true"] {
+  background: var(--verde);
+  color: #fff;
+}
+.item-lista .texto { flex: 1 1 auto; min-width: 0; }
+.item-lista .nome {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-lista .endereco {
+  display: block;
+  font-size: 13px;
+  color: var(--texto-suave);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-lista[aria-current="true"] .endereco { color: rgba(255, 255, 255, .85); }
+.item-lista .chevron {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: .75;
+}
+
+.aviso {
+  margin: auto 0;
+  padding: 16px 6px 24px;
+  font-size: 14px;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------- zona do mapa */
+
+#zona-mapa {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--fundo);
+  border-left: 2px solid var(--verde-borda);
+  border-right: 2px solid var(--verde-borda);
+  overflow: hidden;
+  touch-action: none;          /* o gesto é tratado pela câmera */
+}
+
+#canvas-mapa {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+#canvas-mapa.arrastando { cursor: grabbing; }
+
+.camada-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;        /* só os pins recebem eventos (regra 2) */
+}
+
+/* --------------------------------------------------------------- pin (hotspot) */
+
+/* O <button> é só uma âncora sem caixa; a ponta do pin cai exatamente na
+   coordenada do mundo (a caixa vai de -40px a 0 no eixo Y). */
+.pin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  transform: translate3d(-100px, -100px, 0);   /* posicionado pelo JS */
+  pointer-events: none;                        /* só o corpo recebe o clique */
+}
+
+.pin-corpo {
+  position: absolute;
+  left: -15px;
+  top: -40px;
+  width: 30px;
+  height: 40px;
+  cursor: pointer;
+  pointer-events: auto;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2030%2040'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='0.6'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%237ed321'/%3E%3Cstop%20offset='1'%20stop-color='%2314511f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath%20d='M15%200C6.7%200%200%206.7%200%2015c0%206%204.7%2012.7%2015%2025%2010.3-12.3%2015-19%2015-25C30%206.7%2023.3%200%2015%200z'%20fill='url(%23g)'/%3E%3Ccircle%20cx='15'%20cy='15'%20r='5.5'%20fill='%23eef1f0'/%3E%3C/svg%3E") no-repeat center / 30px 40px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35));
+}
+.pin:focus-visible .pin-corpo { outline: 2px solid var(--verde); outline-offset: 3px; }
+.pin[aria-pressed="true"] .pin-corpo { filter: brightness(1.18) drop-shadow(0 3px 5px rgba(0, 0, 0, .45)); }
+
+.pin-badge {
+  position: absolute;
+  left: 8px;
+  top: -40px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--vermelho);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------- controles do mapa (registro) */
+
+.controles-mapa,
+.notificacoes,
+.seletor-area { position: absolute; z-index: 4; }
+
+/* botão da gaveta: só existe no layout provisório de telas pequenas */
+.abrir-gaveta {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cartao);
+  color: var(--verde-escuro);
+  box-shadow: var(--sombra);
+  cursor: pointer;
+}
+.abrir-gaveta svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+
+.controles-mapa {
+  right: 16px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-mapa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cartao);
+  color: var(--verde);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--sombra);
+}
+.btn-mapa:hover { filter: brightness(.97); }
+.btn-mapa:active { transform: translateY(1px); }
+.btn-mapa svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+
+.pilha-zoom {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--sombra);
+}
+.pilha-zoom .btn-mapa { border-radius: 0; box-shadow: none; }
+.pilha-zoom .btn-mapa + .btn-mapa { border-top: 1px solid #e3e3e3; }
+
+.notificacoes { top: 16px; right: 16px; }
+.btn-sino { position: relative; color: var(--verde-escuro); }
+.btn-sino .badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--vermelho);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.seletor-area { left: 16px; bottom: 18px; }
+.btn-area {
+  display: block;
+  padding: 4px;
+  border: 3px solid var(--verde);
+  border-radius: 12px;
+  background: var(--cartao);
+  cursor: pointer;
+  box-shadow: var(--sombra);
+}
+.btn-area img { display: block; width: 96px; height: 68px; object-fit: cover; border-radius: 6px; }
+.btn-area .rotulo {
+  display: block;
+  padding: 3px 0 1px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--texto);
+}
+.menu-areas {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  min-width: 170px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--cartao);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+}
+.menu-areas button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-areas button:hover { background: #eef3ea; }
+.menu-areas button[aria-current="true"] { background: var(--verde); color: #fff; }
+
+.aviso-mapa {
+  position: absolute;
+  inset: auto 0 50% 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: auto;
+  padding: 20px 24px;
+  max-width: 420px;
+  background: var(--cartao);
+  border-radius: var(--raio);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  text-align: center;
+}
+.aviso-mapa p { margin: 0; font-size: 15px; }
+.aviso-mapa button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--verde);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------- ficha */
+
+#ficha {
+  flex: 0 0 360px;
+  position: relative;
+  background: var(--fundo);
+  padding: 16px 14px 24px;
+  overflow-y: auto;
+}
+
+.fechar-ficha {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: var(--sombra);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ficha-foto { position: relative; margin-bottom: 14px; }
+.ficha-foto img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--raio);
+}
+.ficha-legenda {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 7px 12px;
+  background: var(--verde);
+  color: #fff;
+  font-size: 13px;
+  border-radius: 0 0 var(--raio) var(--raio);
+}
+
+.bloco {
+  background: var(--cartao);
+  border-radius: var(--raio);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--sombra);
+}
+.bloco h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.bloco p { margin: 0; font-size: 14px; line-height: 1.5; }
+.bloco .lista-simples { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+
+.contato-orgao { margin-bottom: 10px; }
+.contato-orgao strong { display: block; font-size: 14px; margin-bottom: 2px; }
+.contato-orgao a, .contato-orgao span { display: block; font-size: 14px; color: var(--teal); }
+.contato-orgao span { color: var(--texto); }
+
+.ficha-titulo-faixa {
+  margin: 0 0 8px;
+  padding: 8px 14px;
+  background: var(--verde);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: var(--raio);
+}
+.evento strong { display: block; font-size: 14px; }
+.evento span { font-size: 13px; color: var(--texto-suave); }
+.evento + .evento { margin-top: 8px; }
+
+.link-externo {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--verde);
+  color: #fff !important;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ações da ficha sempre em linha própria, abaixo do texto */
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ficha-titulo { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+
+/* ------------------------------------------------------- erro total (sem WebGL) */
+
+.erro-total {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  text-align: center;
+}
+.erro-total p {
+  margin: 0;
+  padding: 24px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------- responsividade provisória
+   O layout mobile ainda é decisão pendente (Seção 10, item 2). Enquanto ela
+   não é fechada: barra lateral vira gaveta e a ficha cobre o mapa. */
+@media (max-width: 980px) {
+  #barra-lateral {
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(84vw, 320px);
+    transform: translateX(-100%);
+    transition: transform .18s ease;
+    box-shadow: 0 0 24px rgba(0, 0, 0, .3);
+  }
+  #app.gaveta-aberta #barra-lateral { transform: none; }
+  .abrir-gaveta { display: flex; position: absolute; top: 16px; left: 16px; z-index: 7; }
+  .notificacoes { top: 16px; right: 16px; }
+
+  #ficha {
+    position: absolute;
+    z-index: 9;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    flex: none;
+    max-height: 62vh;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, .3);
+  }
+}

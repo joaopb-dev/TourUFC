@@ -1,0 +1,188 @@
+{
+  "_notas": "Base de conteúdo do TourUFC. Coordenadas normalizadas (0..1) sobre a textura da área — provisórias, a calibrar com a ilustração final. Contatos e datas copiados do Figma. Links externos devem ser validados pela equipe (Seção 7 das restrições).",
+
+  "categorias": [
+    { "id": "todos", "nome": "Todos" },
+    { "id": "servicos", "nome": "Serviços" },
+    { "id": "bolsas", "nome": "Bolsas" },
+    { "id": "ensino", "nome": "Ensino" },
+    { "id": "laboratorios", "nome": "Laboratórios" },
+    { "id": "grupos", "nome": "Grupos" }
+  ],
+
+  "areas": [
+    {
+      "id": "engenharias",
+      "nome": "Engenharias",
+      "textura": "assets/mapa-campus.webp",
+      "miniatura": "assets/mapas/engenharias-mini.png"
+    },
+    {
+      "id": "famed",
+      "nome": "FAMED",
+      "textura": null,
+      "miniatura": "assets/mapas/famed-mini.png"
+    }
+  ],
+
+  "locais": [
+    {
+      "id": "bloco-engenharias",
+      "nome": "Bloco das Engenharias",
+      "area": "engenharias",
+      "tipo": "bloco",
+      "categorias": ["servicos", "ensino", "bolsas"],
+      "coordenada": { "x": 0.618, "y": 0.435 },
+      "resumo": "Rua Estanislau Frota...",
+      "endereco": "R. Cel. Estanislau Frota, 563 — Centro, Sobral - CE, 62010-560",
+      "palavrasChave": "engenharias bloco computação elétrica auxílio bolsa evento",
+      "unidades": ["coord-eng-computacao", "coord-eng-eletrica", "lab-simulacoes-numerica", "recepcao-bloco-engenharias", "pet-eng-computacao", "nulic"],
+      "fotos": [
+        {
+          "src": "assets/fotos/bloco-engenharias.webp",
+          "legenda": "Em Breve: Encontros Universitários 2026"
+        }
+      ],
+      "contatos": [
+        {
+          "orgao": "Coordenação da Engenharia de Computação",
+          "email": "ec@sobral.ufc.br",
+          "site": "https://ec.ufc.br",
+          "telefone": "(88) 3695-4608"
+        },
+        {
+          "orgao": "Coordenação da Engenharia Elétrica",
+          "email": "coord.engeletrica@sobral.ufc.br",
+          "site": "https://www.engeletrica.sobral.ufc.br",
+          "telefone": "(88) 3695-4610"
+        }
+      ],
+      "eventos": [
+        {
+          "titulo": "Encontros Universitários 2026",
+          "inicio": "2026-11-04",
+          "fim": "2026-11-05",
+          "url": "https://www.ufc.br/sobral"
+        }
+      ],
+      "bolsas": [
+        { "nome": "Auxílio Moradia", "descricao": "Apoio a estudantes de fora da cidade", "url": "https://prae.ufc.br" },
+        { "nome": "Bolsa BIA", "descricao": "Bolsa de iniciação à docência", "url": "https://prae.ufc.br" },
+        { "nome": "Auxílio Emergencial", "descricao": "Apoio pontual a estudantes em dificuldade", "url": "https://prae.ufc.br" },
+        { "nome": "Auxílio Transporte", "descricao": "Apoio com deslocamento no município", "url": "https://prae.ufc.br" }
+      ],
+      "links": [
+        { "rotulo": "Saiba mais", "url": "https://www.ufc.br/sobral" }
+      ]
+    },
+
+    {
+      "id": "coord-eng-computacao",
+      "nome": "Coord. da Engenharia de Computação",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["ensino"],
+      "coordenada": { "x": 0.58, "y": 0.515 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "coordenação computação engenharia curso",
+      "contatos": [
+        {
+          "orgao": "Coordenação da Engenharia de Computação",
+          "email": "ec@sobral.ufc.br",
+          "site": "https://ec.ufc.br",
+          "telefone": "(88) 3695-4608"
+        }
+      ],
+      "links": [
+        { "rotulo": "Saiba mais", "url": "https://ec.ufc.br" }
+      ]
+    },
+
+    {
+      "id": "coord-eng-eletrica",
+      "nome": "Coord. da Engenharia Elétrica",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["ensino"],
+      "coordenada": { "x": 0.66, "y": 0.52 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "coordenação elétrica engenharia curso",
+      "contatos": [
+        {
+          "orgao": "Coordenação da Engenharia Elétrica",
+          "email": "coord.engeletrica@sobral.ufc.br",
+          "site": "https://www.engeletrica.sobral.ufc.br",
+          "telefone": "(88) 3695-4610"
+        }
+      ],
+      "links": [
+        { "rotulo": "Saiba mais", "url": "https://www.engeletrica.sobral.ufc.br" }
+      ]
+    },
+
+    {
+      "id": "lab-simulacoes-numerica",
+      "nome": "Laboratório de Simulações Numéricas",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["laboratorios"],
+      "coordenada": { "x": 0.74, "y": 0.525 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "laboratório simulação numérica computação"
+    },
+
+    {
+      "id": "recepcao-bloco-engenharias",
+      "nome": "Recepção do bloco das Engenharias",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["servicos"],
+      "coordenada": { "x": 0.56, "y": 0.545 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "recepção atendimento portaria"
+    },
+
+    {
+      "id": "pet-eng-computacao",
+      "nome": "PET da Engenharia de Computação",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["grupos"],
+      "coordenada": { "x": 0.80, "y": 0.505 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "pet grupo monitoria estudantes",
+      "links": [
+        { "rotulo": "Saiba mais", "url": "https://www.ufc.br/pet" }
+      ]
+    },
+
+    {
+      "id": "nulic",
+      "nome": "NUCLIC",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["grupos", "laboratorios"],
+      "coordenada": { "x": 0.86, "y": 0.53 },
+      "resumo": "Rua Estanislau Frota...",
+      "palavrasChave": "nulic robótica programação automação competições laboratório"
+    },
+
+    {
+      "id": "restaurante-universitario",
+      "nome": "Restaurante Universitário (RU)",
+      "area": "engenharias",
+      "tipo": "unidade",
+      "categorias": ["servicos", "bolsas"],
+      "coordenada": { "x": 0.17, "y": 0.60 },
+      "resumo": "Campus de Sobral",
+      "palavrasChave": "restaurante ru almoço alimentação auxílio refeição",
+      "bolsas": [
+        {
+          "nome": "Restaurante Universitário",
+          "descricao": "Acesso com auxílio alimentação para estudantes inscritos",
+          "url": "https://prae.ufc.br"
+        }
+      ]
+    }
+  ]
+}
