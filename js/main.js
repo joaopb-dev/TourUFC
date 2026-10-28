@@ -61,7 +61,9 @@ async function iniciar() {
     aposMudarNovidades: [],
   };
 
-  const mapa = criarMapa({ canvas });
+  // `aoAnimar` reprojeta os pins enquanto a mola de retorno anima o mapa.
+  const mapa = criarMapa({ canvas, aoAnimar: atualizar });
+  window.__mapa = mapa;   // TEMP: depuração de enquadramento
   mapa.ajustarTamanho();
 
   const aviso = {
@@ -204,8 +206,9 @@ async function iniciar() {
     const area = estado.areas.find((a) => a.id === areaId);
     if (!area || area === estado.areaAtual) return false;
 
-    if (!area.textura) {
-      if (!silencioso) aviso.mapa(`A textura da área "${area.nome}" ainda não foi exportada.`);
+    const fonte = area.modelo || area.textura;
+    if (!fonte) {
+      if (!silencioso) aviso.mapa(`O mapa da área "${area.nome}" ainda não foi exportado.`);
       return false;
     }
 
@@ -214,7 +217,9 @@ async function iniciar() {
     ui.fecharFicha();
 
     try {
-      await mapa.carregarTextura(area.textura);
+      // Modelo 3D (.obj) vira vista de satélite; textura continua plana.
+      if (area.modelo) await mapa.carregarModelo(area.modelo);
+      else await mapa.carregarTextura(area.textura);
     } catch (erro) {
       console.error(erro);
       aviso.mapa('Não foi possível carregar o mapa do campus.', { botao: true });

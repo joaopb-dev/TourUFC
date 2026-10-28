@@ -14,7 +14,7 @@
     {
       "id": "engenharias",
       "nome": "Engenharias",
-      "textura": "assets/mapa-campus.webp",
+      "modelo": "UFC.obj",
       "miniatura": "assets/mapas/engenharias-mini.png"
     },
     {

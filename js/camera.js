@@ -10,6 +10,7 @@
 export function criarControlesDeCamera({ canvas, mapa, aoMudar }) {
   const ponteiros = new Map();
   let arrastando = false;
+  let moveu = false;          // o gesto atual arrastou de verdade (não foi clique)
   let distancaiaAnterior = 0;
 
   const ndc = (evento) => {
@@ -25,6 +26,7 @@ export function criarControlesDeCamera({ canvas, mapa, aoMudar }) {
     ponteiros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
     if (ponteiros.size === 1) {
       arrastando = true;
+      moveu = false;
       canvas.classList.add('arrastando');
     }
     if (ponteiros.size === 2) {
@@ -64,6 +66,7 @@ export function criarControlesDeCamera({ canvas, mapa, aoMudar }) {
     const dy = evento.clientY - anterior.y;
     ponteiros.set(evento.pointerId, { x: evento.clientX, y: evento.clientY });
     if (arrastando && (dx || dy)) {
+      moveu = true;
       mapa.moverPorPixels(dx, dy, canvas.clientWidth, canvas.clientHeight);
       aoMudar();
     }
@@ -75,6 +78,10 @@ export function criarControlesDeCamera({ canvas, mapa, aoMudar }) {
     if (ponteiros.size === 0) {
       arrastando = false;
       canvas.classList.remove('arrastando');
+      // Arrastou até o limite (mapa saindo do quadro)? Solta e a mola
+      // elástica puxa tudo de volta para o centro.
+      if (moveu && mapa.naBorda?.()) mapa.recentralizarComMola?.();
+      moveu = false;
     }
   }
 

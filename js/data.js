@@ -30,12 +30,13 @@ function validar(bruto) {
     .map((a, i) => ({
       id: texto(a.id, 40) || `area-${i}`,
       nome: texto(a.nome, 60) || `Área ${i + 1}`,
+      modelo: texto(a.modelo, 300),
       textura: texto(a.textura, 300),
       miniatura: texto(a.miniatura, 300),
       zoomMax: Number.isFinite(a.zoomMax) ? a.zoomMax : null,
     }))
     .map((a, i) => {
-      if (!a.textura) erros.push(`área "${a.id}" sem textura`);
+      if (!a.modelo && !a.textura) erros.push(`área "${a.id}" sem mapa`);
       return a;
     });
 
