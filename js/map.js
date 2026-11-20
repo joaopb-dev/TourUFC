@@ -111,6 +111,11 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   let alturaPx = 1;
   let zoomMin = 0.25;
   let zoomMax = 4;
+  // Enquadramento exato (conteúdo inteiro preenchendo o quadro) e limites
+  // verticais do conteúdo — as alturas entram na conta do enquadramento.
+  let zoomEnquadramento = 1;
+  let topoConteudo = 0;
+  let baseConteudo = 0;
   const carregador = new THREE.TextureLoader();
 
   const limitar = (v, min, max) => Math.min(Math.max(v, min), max);
@@ -123,18 +128,38 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     camera.updateProjectionMatrix();
   }
 
-  /** Mínimo = conteúdo inteiro visível; máximo = definido pela área. */
+  /** Enquadramento exato = conteúdo inteiro visível; zoomMin = piso do zoom. */
   function recalcularZoom(ajustarZoom = true) {
     // Na inclinação o conteúdo encolhe na vertical (foreshortening pelo
     // cosseno) e a rotação troca a "largura" de lugar: o enquadramento
-    // mínimo acompanha a AABB do conteúdo já girado, para o quadro
-    // continuar cheio de terreno em qualquer ângulo.
+    // acompanha a AABB do conteúdo já girado. As alturas (prédios, árvores)
+    // sobem pelo seno da inclinação — sem elas na conta, a 45° os topos
+    // estouram o quadro mesmo com o zoom no limite de afastamento.
     const c = Math.abs(Math.cos(rotacao));
     const s = Math.abs(Math.sin(rotacao));
     const larg = LARGURA_MUNDO * c + alturaMundo * s;
     const alt = LARGURA_MUNDO * s + alturaMundo * c;
-    const enquadramento = Math.min(2 * aspecto / larg, 2 / (alt * Math.cos(inclinao)));
-    zoomMin = enquadramento;
+    const cosseno = Math.cos(inclinao);
+    const seno = Math.sin(inclinao);
+    const meio = MARGEM * alt / 2;               // metade do conteúdo em Z
+    const vTopo = meio * cosseno + topoConteudo * seno;
+    const vBase = meio * cosseno + Math.abs(baseConteudo) * seno;
+    zoomEnquadramento = Math.min(
+      2 * aspecto / larg,
+      2 / (alt * cosseno),
+      1 / Math.max(vTopo, vBase, 1e-6),
+    );
+    // Piso do zoom (o mais afastado permitido): o pior enquadramento
+    // possível — conteúdo girado a 45° (AABB na diagonal), vista de cima.
+    // Como o piso NÃO depende do ângulo nem da rotação atuais, inclinar ou
+    // girar nunca mexe no zoom sozinho; e como ele fica abaixo do
+    // enquadramento cheio, sempre sobra afastamento até o limite (mais de
+    // um nível dos botões +/−) com o conteúdo inteiro ainda no quadro.
+    const diagonal = (LARGURA_MUNDO + alturaMundo) * Math.SQRT1_2;
+    const a = MARGEM * diagonal / 2;             // metade do conteúdo na diagonal
+    const h = Math.max(topoConteudo, Math.abs(baseConteudo));
+    const vPior = h <= a ? Math.hypot(a, h) : (a + h) * Math.SQRT1_2;
+    zoomMin = Math.min(2 * aspecto / diagonal, 2 / diagonal, 1 / vPior);
     if (ajustarZoom) camera.zoom = limitar(camera.zoom, zoomMin, zoomMax);
   }
 
@@ -304,12 +329,12 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
 
   function recentralizar() {
     pararMola();
-    // A bússola volta a vista ao estado de fábrica: norte para cima e a
-    // inclinação padrão (25°) — além de zoom mínimo e centro do conteúdo.
+    // A bússola volta a vista ao estado de fábrica: norte para cima, a
+    // inclinação padrão (25°), o enquadramento cheio e o centro do conteúdo.
     rotacao = 0;
     inclinao = INCLINACAO_PADRAO;
     recalcularZoom(true);
-    camera.zoom = zoomMin;
+    camera.zoom = zoomEnquadramento;
     centralizarEm(0.5, 0.5);
   }
 
@@ -321,8 +346,19 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   function girar(deltaGraus) {
     if (!Number.isFinite(deltaGraus)) return;
     pararMola();
-    const rad = deltaGraus * Math.PI / 180;
-    rotacao = Math.atan2(Math.sin(rotacao + rad), Math.cos(rotacao + rad));
+    aplicarRotacao(rotacao + deltaGraus * Math.PI / 180);
+  }
+
+  /** Fixa a rotação da vista em graus (−180..180), normalizada. */
+  function definirRotacao(graus) {
+    if (!Number.isFinite(graus)) return;
+    pararMola();
+    aplicarRotacao(graus * Math.PI / 180);
+  }
+
+  /** Normaliza o ângulo em ±180° e recompõe câmera, conteúdo e limites. */
+  function aplicarRotacao(rad) {
+    rotacao = Math.atan2(Math.sin(rad), Math.cos(rad));
     recalcularZoom(true);   // a AABB girada pode exigir mais zoom mínimo
     limitarPosicao();
     camera.updateProjectionMatrix();
@@ -392,8 +428,19 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     // As coordenadas (0..1) dos locais cobrem o quadro inteiro; o conteúdo do
     // campus ocupa `MARGEM` dele, deixando terreno livre nas bordas.
     alturaMundo = Math.max(alturaConteudo / MARGEM, 0.01);
+    // Limites verticais do conteúdo (em unidades de mundo): entram no
+    // enquadramento porque a inclinação projeta essas alturas na tela.
+    topoConteudo = 0;
+    baseConteudo = 0;
+    for (const { geo } of geometrias) {
+      const pos = geo.getAttribute('position').array;
+      for (let i = 1; i < pos.length; i += 3) {
+        if (pos[i] > topoConteudo) topoConteudo = pos[i];
+        if (pos[i] < baseConteudo) baseConteudo = pos[i];
+      }
+    }
     recalcularZoom(false);
-    zoomMax = Math.max(4, zoomMin * 6);
+    zoomMax = Math.max(4, zoomEnquadramento * 6);
     recentralizar();
   }
 
@@ -423,8 +470,10 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
           const iw = textura.image.width;
           const ih = textura.image.height;
           alturaMundo = 2 * (ih / iw);
+          topoConteudo = 0;          // imagem plana: sem alturas na conta
+          baseConteudo = 0;
           recalcularZoom(false);
-          zoomMax = Math.max(4, zoomMin * 6);
+          zoomMax = Math.max(4, zoomEnquadramento * 6);
           recentralizar();
           render();
           resolver({ largura: iw, altura: ih });
@@ -443,6 +492,7 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
       zoom: camera.zoom,
       zoomMin,
       zoomMax,
+      zoomEnquadramento,             // enquadramento cheio (padrão da bússola)
       incl: inclinao,                 // inclinação atual (rad)
       inclMax: INCLINACAO_MAX,        // teto do controle (rad)
       inclPadrao: INCLINACAO_PADRAO,  // inclinação de fábrica (rad)
@@ -458,10 +508,11 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     centralizarEm,
     recentralizar,
     girar,
+    definirRotacao,
     definirInclinacao,
     inclinacao: () => inclinao * 180 / Math.PI,     // em graus
-    inclinacaoPadrao: () => INCLINACAO_PADRAO * 180 / Math.PI,
     rotacao: () => rotacao * 180 / Math.PI,         // em graus
+    limitesInclinacao: () => ({ min: 0, max: INCLINACAO_MAX * 180 / Math.PI }),
     carregarModelo,
     carregarTextura,
     paraTela,
@@ -476,5 +527,6 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     alturaMundo: () => alturaMundo,
     camera,
     renderer,
+    scene,
   };
 }

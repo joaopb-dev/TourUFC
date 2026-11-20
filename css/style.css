@@ -265,14 +265,20 @@ html, body {
 }
 .abrir-gaveta svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 
+/* Grade: o painel de ângulo/rotação fica à esquerda do zoom, alinhado ao
+   centro da pilha, e a bússola continua embaixo — como na imagem de
+   referência. Os botões não mudam de lugar em relação ao canto. */
 .controles-mapa {
   right: 16px;
   bottom: 18px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto auto;
   gap: 12px;
   align-items: center;
 }
+.controles-mapa .painel-angulo { grid-area: 1 / 1; }
+.controles-mapa .pilha-zoom { grid-area: 1 / 2; }
+.controles-mapa .bussola { grid-area: 2 / 2; }
 
 .btn-mapa {
   display: flex;
@@ -311,8 +317,37 @@ html, body {
   transition: transform .18s ease-out;  /* a agulha segue a vista suave */
 }
 
-/* botão 2D/3D: rótulo curto no lugar do ícone */
-.btn-vista { font-size: 14px; font-weight: 800; letter-spacing: .02em; }
+/* ângulo e rotação: deslizantes com leitura em graus */
+.painel-angulo {
+  width: 172px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--cartao);
+  box-shadow: var(--sombra);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.painel-angulo .topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--texto);
+}
+.painel-angulo .leitura {
+  font-weight: 800;
+  color: var(--verde);
+  font-variant-numeric: tabular-nums;
+}
+.painel-angulo .deslize {
+  display: block;
+  width: 100%;
+  margin: 4px 0 0;
+  accent-color: var(--verde);
+  cursor: pointer;
+}
 
 .notificacoes { top: 16px; right: 16px; }
 .btn-sino { position: relative; color: var(--verde-escuro); }

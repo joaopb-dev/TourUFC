@@ -74,38 +74,73 @@ registrarControle({
   },
 });
 
-/* ------------------------------------------------------- vista 2D / 3D */
+/* ------------------------------------------------- ângulo e rotação */
+
+/** Uma linha do painel: rótulo + leitura em graus + deslizante. */
+function linhaDeslize({ rotulo, classe, min, max, valor, aplicar }) {
+  const caixa = document.createElement('div');
+  caixa.className = `linha-deslize ${classe}`;
+
+  const topo = document.createElement('div');
+  topo.className = 'topo';
+  const nome = document.createElement('span');
+  nome.textContent = rotulo;
+  const leitura = document.createElement('output');
+  leitura.className = `leitura ${classe}`;
+  topo.append(nome, leitura);
+
+  const deslize = document.createElement('input');
+  deslize.type = 'range';
+  deslize.className = `deslize ${classe}`;
+  deslize.min = String(min);
+  deslize.max = String(max);
+  deslize.step = '1';
+  deslize.value = String(valor);
+  deslize.setAttribute('aria-label', `${rotulo} do mapa, em graus`);
+  deslize.addEventListener('input', () => aplicar(Number(deslize.value)));
+
+  caixa.append(topo, deslize);
+  return { caixa, leitura, deslize };
+}
 
 registrarControle({
-  id: 'vista-2d-3d',
+  id: 'angulo-e-rotacao',
   local: 'controles',
-  ordem: 30,
-  titulo: 'Alternar entre vista 2D e 3D',
-  render(ctx) {
-    return botao({
-      classe: 'btn-vista',
-      rotulo: 'Alternar entre vista 2D e 3D',
-      aoClicar: () => {
-        // Como no Maps: se está inclinado, achata (2D); se está chato,
-        // volta para a inclinação padrão (3D).
-        const incl = ctx.mapa.inclinacao();
-        ctx.mapa.definirInclinacao(incl > 0 ? 0 : ctx.mapa.inclinacaoPadrao());
-      },
-    });
+  ordem: 5,                    // acima do zoom: os botões ficam onde estavam
+  titulo: 'Ângulo e rotação do mapa',
+  render() {
+    return document.createElement('div');
   },
-  aoMontar(el, ctx) {
+  aoMontar(painel, ctx) {
+    painel.className = 'painel-angulo';
+
+    const angulo = linhaDeslize({
+      rotulo: 'Ângulo',
+      classe: 'inclinacao',
+      min: 0,
+      max: Math.round(ctx.mapa.limitesInclinacao().max),   // 45° — sem deitar
+      valor: Math.round(ctx.mapa.inclinacao()),
+      aplicar: (graus) => ctx.mapa.definirInclinacao(graus),
+    });
+    const rotacao = linhaDeslize({
+      rotulo: 'Rotação',
+      classe: 'rotacao',
+      min: -180,
+      max: 180,
+      valor: Math.round(ctx.mapa.rotacao()),
+      aplicar: (graus) => ctx.mapa.definirRotacao(graus),
+    });
+    painel.append(angulo.caixa, rotacao.caixa);
+
+    // A vista muda por qualquer caminho (bússola, arraste, twist, gestos)?
+    // os deslizantes e as leituras acompanham.
     function desenhar() {
-      const incl = Math.round(ctx.mapa.inclinacao());
-      const modo = incl === 0 ? '3D' : '2D';   // rótulo = modo que o botão ativa
-      if (el.dataset.modo === modo) return;
-      el.dataset.modo = modo;
-      el.textContent = modo;
-      const rotulo = incl === 0
-        ? 'Ver o campus em 3D (vista inclinada)'
-        : 'Voltar à vista 2D (vista de cima)';
-      el.title = rotulo;
-      el.setAttribute('aria-label', rotulo);
-      el.setAttribute('aria-pressed', String(incl !== 0));
+      const inc = Math.round(ctx.mapa.inclinacao());
+      const rot = Math.round(ctx.mapa.rotacao());
+      angulo.leitura.textContent = `${inc}°`;
+      rotacao.leitura.textContent = `${rot}°`;
+      angulo.deslize.value = String(inc);
+      rotacao.deslize.value = String(rot);
     }
     desenhar();
     ctx.hooks.aoNavegar.push(desenhar);

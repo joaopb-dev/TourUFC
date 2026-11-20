@@ -4,7 +4,7 @@
  * Google Maps: Ctrl+arrastar (ou botão direito) orbita a vista e, com dois
  * dedos, o twist gira, o arraste paralelo inclina na vertical e move na
  * horizontal. Os botões registrados por js/modulos/controles-mapa.js
- * completam o resto (zoom, bússola, 2D/3D).
+ * completam o resto (zoom, bússola, ângulo/rotação).
  *
  * Os limites de deslocamento, de aproximação, de rotação e de inclinação
  * vivem em map.js; aqui só se traduz gesto em movimento e se avisa a UI

@@ -60,7 +60,7 @@ async function iniciar() {
     aposTrocarArea: [],
     aposMudarNovidades: [],
     // A vista mudou (zoom, pan, inclinação ou rotação): a UI do mapa
-    // (ponteiro da bússola, botão 2D/3D) se reinterplica por aqui.
+    // (ponteiro da bússola, painel de ângulo/rotação) se reinterplica por aqui.
     aoNavegar: [],
   };
 
@@ -130,10 +130,11 @@ async function iniciar() {
       limites: () => mapa.limitesZoom(),
       // Rotação e inclinação (estilo Google Maps), tudo em graus:
       girar: (deltaGraus) => { mapa.girar(deltaGraus); atualizar(); },
+      definirRotacao: (graus) => { mapa.definirRotacao(graus); atualizar(); },
       definirInclinacao: (graus) => { mapa.definirInclinacao(graus); atualizar(); },
       inclinacao: () => mapa.inclinacao(),
-      inclinacaoPadrao: () => mapa.inclinacaoPadrao(),
       rotacao: () => mapa.rotacao(),
+      limitesInclinacao: () => mapa.limitesInclinacao(),
     },
     ui: {
       abrirFicha: (local) => selecionar(local),

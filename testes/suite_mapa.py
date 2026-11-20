@@ -9,8 +9,8 @@ gancho `window.__tour`. Cobre o que a vista inclinada alterou na matemática
 (o eixo Z projetado encurtado pelo cosseno no arraste, no limite de 25% e no
 zoom sobre o cursor) e os controles estilo Google Maps: rotação em torno do
 foco, inclinação limitada a 0..45°, Ctrl+arrastar/botão direito (orbita),
-twist e arraste paralelo de dois dedos, pinça, ponteiro da bússola e botão
-2D/3D.
+twist e arraste paralelo de dois dedos, pinça, ponteiro da bússola e
+deslizantes de ângulo (0..45°) e rotação (−180..180°).
 
 Uso: servidor estático de pé na raiz do projeto e `chromium-browser` no PATH.
 """
@@ -222,7 +222,7 @@ async def main():
         p = await posicao()
         z1 = await zoom()
         fator = 0.5 * (1 / z0 - 1 / z1)         # deslocamento do ancoramento
-        check('zoom dobra o zoom mínimo x2', abs(z1 - z0 * 2) < 1e-9, True, f'{z0} -> {z1}')
+        check('zoom dobra o enquadramento padrão x2', abs(z1 - z0 * 2) < 1e-9, True, f'{z0} -> {z1}')
         check('zoom sobre o cursor mantém o ponto no X', abs(p['x'] - i['aspecto'] * fator) < 1e-6, True,
               f"{p['x']:.9f} vs {i['aspecto'] * fator:.9f}")
         check('zoom sobre o cursor mantém o ponto no Z (inclinado)', abs(p['z'] + fator / cosseno) < 1e-6, True,
@@ -283,17 +283,17 @@ async def main():
         check('mola não desloca o Z', all(abs(z) < 1e-9 for z in zs), True)
 
         # Em renderização por software (SwiftShader) um quadro da mola pode
-        # levar centenas de ms, então a duração e a desaceleração são medidas
-        # do voo em si: de quando o mapa sai da parede até parar no centro.
-        inicio = next((k for k, x in enumerate(xs) if x < xs[0] - 1e-9), 0)
-        t_voo = amostras[inicio][0]
-        duracao = amostras[-1][0] - t_voo
+        # levar centenas de ms e o primeiro quadro atrasa até um período de
+        # frame — a duração é contada da soltura até a parada. A física é em
+        # tempo de relógio (solução exata em dt), então o resultado não
+        # depende da cadência de quadros.
+        duracao = amostras[-1][0]
 
         def x_no_tempo(t):
             return abs(min(amostras, key=lambda a: abs(a[0] - t))[1])
 
-        x25 = x_no_tempo(t_voo + duracao * 0.25)
-        x75 = x_no_tempo(t_voo + duracao * 0.75)
+        x25 = x_no_tempo(duracao * 0.25)
+        x75 = x_no_tempo(duracao * 0.75)
         check('mola dura entre 0,6 e 1,5 s', 0.6 <= duracao <= 1.5, True, f'{duracao:.3f}s')
         # Desaceleração: em 1/4 do tempo já passou da metade do caminho e, em
         # 3/4, quase chegou — mola que segue em velocidade constante não passa.
@@ -370,10 +370,10 @@ async def main():
               visivel >= min(0.25 * i['alturaMundo'], 2 * mvz) - 1e-9, True, f'visível={visivel:.4f}')
 
         # ============================ rotação e inclinação (estilo Maps)
-        # Controles novos: bússola com ponteiro girando, botão 2D/3D,
-        # Ctrl+arrastar/botão direito (orbita) e gestos de dois dedos
-        # (twist, arraste paralelo, pinça). A inclinação é limitada
-        # (0..45°) para o usuário nunca "deitar" o mapa.
+        # Controles novos: bússola com ponteiro girando, painel deslizante
+        # de ângulo (0..45°) e rotação (−180..180°), Ctrl+arrastar/botão
+        # direito (orbita) e gestos de dois dedos (twist, arraste paralelo,
+        # pinça). A inclinação é limitada para o usuário nunca "deitar".
 
         await recentralizar()
         i = await info()
@@ -472,21 +472,51 @@ async def main():
         check('botão direito também orbita (80 px à esquerda = +20°)',
               abs(i['rot'] - math.radians(20)) < 1e-9, True, f"{math.degrees(i['rot']):.4f}°")
 
-        # ------------------------------ UI: ponteiro da bússola e 2D/3D
+        # ------------- UI: ponteiro da bússola e deslizantes de ângulo/rotação
         await recentralizar()
         await avaliar('window.__tour.mapa.girar(90); window.__tour.atualizar();', espera=0.3)
         pont = await avaliar("return document.querySelector('.ponteiro').style.transform;", espera=0)
         check('ponteiro da bússola acompanha a rotação', pont, 'rotate(-90deg)')
-        vista = await avaliar("return document.querySelector('.btn-vista').textContent;", espera=0)
-        check('botão 2D/3D mostra "2D" com a vista inclinada', vista, '2D')
-        await avaliar("document.querySelector('.btn-vista').click();", espera=0.3)
+        st = json.loads(await avaliar(
+            "return JSON.stringify({"
+            "ang: document.querySelector('.deslize.inclinacao').value,"
+            "rot: document.querySelector('.deslize.rotacao').value,"
+            "max: document.querySelector('.deslize.inclinacao').max,"
+            "leitura: document.querySelector('.linha-deslize.rotacao .leitura').textContent});",
+            espera=0))
+        check('deslizantes e leituras acompanham a vista',
+              (st['ang'], st['rot'], st['max'], st['leitura']), ('25', '90', '45', '90°'))
+
+        # arrastar o deslizante de rotação fixa o ângulo pedido
+        await avaliar("const r = document.querySelector('.deslize.rotacao');"
+                      "r.value = '-45'; r.dispatchEvent(new Event('input', {bubbles: true}));",
+                      espera=0.3)
         i = await info()
-        vista = await avaliar("return document.querySelector('.btn-vista').textContent;", espera=0)
-        check('clique achata a vista (0°)', round(i['incl'], 12), 0.0)
-        check('botão passa a mostrar "3D"', vista, '3D')
+        check('deslizante de rotação fixa em -45°', abs(i['rot'] - math.radians(-45)) < 1e-9, True,
+              f"{math.degrees(i['rot']):.4f}°")
+
+        # o deslizante de ângulo só vai até o teto de 45° (não deita)
+        await avaliar("const a = document.querySelector('.deslize.inclinacao');"
+                      "a.value = '90'; a.dispatchEvent(new Event('input', {bubbles: true}));",
+                      espera=0.3)
+        i = await info()
+        check('deslizante do ângulo capa em 45°', abs(i['incl'] - math.radians(45)) < 1e-12, True,
+              f"{math.degrees(i['incl']):.1f}°")
+        await avaliar("const a = document.querySelector('.deslize.inclinacao');"
+                      "a.value = '0'; a.dispatchEvent(new Event('input', {bubbles: true}));",
+                      espera=0.3)
+        i = await info()
+        check('deslizante do ângulo chega a 0° (vista de cima)', round(i['incl'], 12), 0.0)
+
+        # a bússola zera ponteiro e deslizantes junto
         await recentralizar()
         pont = await avaliar("return document.querySelector('.ponteiro').style.transform;", espera=0)
+        st = json.loads(await avaliar(
+            "return JSON.stringify({"
+            "ang: document.querySelector('.deslize.inclinacao').value,"
+            "rot: document.querySelector('.deslize.rotacao').value});", espera=0))
         check('bússola zera o ponteiro', pont, 'rotate(0deg)')
+        check('bússola zera os deslizantes', (st['ang'], st['rot']), ('25', '0'))
 
         # ------------------------------------- dois dedos: twist e paralelo
         await recentralizar()
@@ -527,6 +557,75 @@ async def main():
         z1 = await zoom()
         check('pinça de dois dedos reduz o zoom (x0,25)', abs(z1 - z0 * 0.25) < 1e-6, True,
               f'{z0:.4f} -> {z1:.4f} (esperado {z0 * 0.25:.4f})')
+
+        # ------------------------- inclinar não muda o zoom (sem zoom "sozinho")
+        await recentralizar()
+        z0 = await zoom()
+        # o cenário do bug: subir o ângulo de 25° a 45° pelo deslizante
+        await avaliar("const a = document.querySelector('.deslize.inclinacao');"
+                      "a.value = '45'; a.dispatchEvent(new Event('input', {bubbles: true}));",
+                      espera=0.3)
+        z1 = await zoom()
+        i = await info()
+        check('subir o ângulo a 45° não mexe no zoom', abs(z1 - z0) < 1e-12, True,
+              f'{z0:.6f} -> {z1:.6f}')
+        check('deslizante realmente levou o ângulo a 45°',
+              round(math.degrees(i['incl'])), 45, f"{math.degrees(i['incl']):.2f}°")
+
+        # o piso de zoom fica mais afastado que o enquadramento cheio: sempre
+        # sobra mais de um nível dos botões +/− com o conteúdo no quadro
+        check('zoom mínimo afasta mais que um nível além do enquadramento',
+              i['zoomMin'] * 1.35 < i['zoomEnquadramento'], True,
+              f"min={i['zoomMin']:.4f} enq={i['zoomEnquadramento']:.4f}")
+
+        # o conteúdo (prédios e árvores — sem o chão, que é o fundo) cabe no
+        # quadro projetado (NDC dentro de ±1)?
+        async def limites_conteudo():
+            return json.loads(await avaliar(
+                "return (() => {"
+                "  const m = window.__tour.mapa;"
+                "  m.render();"                       # matrizes frescas
+                "  const vi = m.camera.matrixWorldInverse.elements;"
+                "  const pi = m.camera.projectionMatrix.elements;"
+                "  const x = [1e9, -1e9], y = [1e9, -1e9];"
+                "  m.scene.traverse((o) => {"
+                "    if (!o.isMesh || o.material.color.getHexString() === 'b9cba4') return;"
+                "    o.geometry.computeBoundingBox();"
+                "    const b = o.geometry.boundingBox, e = o.matrixWorld.elements;"
+                "    for (const cx of [b.min.x, b.max.x])"
+                "      for (const cy of [b.min.y, b.max.y])"
+                "        for (const cz of [b.min.z, b.max.z]) {"
+                "          const w = e[3]*cx + e[7]*cy + e[11]*cz + e[15];"
+                "          const px = (e[0]*cx + e[4]*cy + e[8]*cz + e[12]) / w;"
+                "          const py = (e[1]*cx + e[5]*cy + e[9]*cz + e[13]) / w;"
+                "          const pz = (e[2]*cx + e[6]*cy + e[10]*cz + e[14]) / w;"
+                "          const vx = vi[0]*px + vi[4]*py + vi[8]*pz + vi[12];"
+                "          const vy = vi[1]*px + vi[5]*py + vi[9]*pz + vi[13];"
+                "          const vz = vi[2]*px + vi[6]*py + vi[10]*pz + vi[14];"
+                "          const nw = pi[3]*vx + pi[7]*vy + pi[11]*vz + pi[15];"
+                "          const nx = (pi[0]*vx + pi[4]*vy + pi[8]*vz + pi[12]) / nw;"
+                "          const ny = (pi[1]*vx + pi[5]*vy + pi[9]*vz + pi[13]) / nw;"
+                "          if (nx < x[0]) x[0] = nx; if (nx > x[1]) x[1] = nx;"
+                "          if (ny < y[0]) y[0] = ny; if (ny > y[1]) y[1] = ny;"
+                "        }"
+                "  });"
+                "  return JSON.stringify({ x, y });"
+                "})()", espera=0))
+
+        def dentro(ndc):
+            return max(abs(v) for v in ndc['x'] + ndc['y'])
+
+        ndc = await limites_conteudo()
+        check('conteúdo cabe no quadro a 45° no enquadramento padrão',
+              dentro(ndc) <= 1.0, True,
+              f"x={ndc['x'][0]:.3f}..{ndc['x'][1]:.3f} y={ndc['y'][0]:.3f}..{ndc['y'][1]:.3f}")
+        await avaliar('const m = window.__tour.mapa;'
+                      'm.aplicarZoom(m.limitesZoom().min);'
+                      'window.__tour.atualizar();', espera=0.3)
+        ndc = await limites_conteudo()
+        check('conteúdo cabe no quadro a 45° com zoom no mínimo',
+              dentro(ndc) <= 1.0, True,
+              f"x={ndc['x'][0]:.3f}..{ndc['x'][1]:.3f} y={ndc['y'][0]:.3f}..{ndc['y'][1]:.3f}")
 
         # ------------------------------------------------------- erros de JS
         await avaliar('return 1;', espera=0.3)               # drenagem final de eventos
