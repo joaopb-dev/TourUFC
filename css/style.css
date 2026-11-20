@@ -44,11 +44,14 @@ html, body {
   overflow: hidden;
 }
 
-.marca { padding: 4px 4px 12px; }
+/* O topo da barra é fixo (flex: 0 0 auto): só a lista encolhe/rola quando o
+   conteúdo é alto — sem isso, a marca era esmagada e a busca cobria o logo. */
+.marca { flex: 0 0 auto; padding: 4px 4px 16px; }
 .marca img { display: block; height: 34px; width: auto; }
 
 .campo-busca {
   position: relative;
+  flex: 0 0 auto;
   margin-bottom: 12px;
 }
 .campo-busca svg {
@@ -80,6 +83,7 @@ html, body {
 
 .chips {
   display: flex;
+  flex: 0 0 auto;
   gap: 8px;
   padding-bottom: 12px;
   overflow-x: auto;

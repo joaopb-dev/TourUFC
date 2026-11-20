@@ -292,10 +292,15 @@ async def main():
         def x_no_tempo(t):
             return abs(min(amostras, key=lambda a: abs(a[0] - t))[1])
 
-        x25 = x_no_tempo(duracao * 0.25)
-        x75 = x_no_tempo(duracao * 0.75)
         check('mola dura entre 0,6 e 1,5 s', 0.6 <= duracao <= 1.5, True, f'{duracao:.3f}s')
-        # Desaceleração: em 1/4 do tempo já passou da metade do caminho e, em
+        # A desaceleração é medida do voo (da saída da parede até a parada):
+        # com o primeiro quadro podendo atrasar um período de frame no
+        # SwiftShader, 25% da soltura ainda poderia ser a parede parada.
+        inicio = next((k for k, x in enumerate(xs) if x < xs[0] - 1e-9), 0)
+        voo = amostras[-1][0] - amostras[inicio][0]
+        x25 = x_no_tempo(amostras[inicio][0] + voo * 0.25)
+        x75 = x_no_tempo(amostras[inicio][0] + voo * 0.75)
+        # Desaceleração: em 1/4 do voo já passou da metade do caminho e, em
         # 3/4, quase chegou — mola que segue em velocidade constante não passa.
         check('mola desacelera até parar',
               (alto_x - x25) > 0.5 * alto_x and (alto_x - x75) > 0.9 * alto_x, True,
