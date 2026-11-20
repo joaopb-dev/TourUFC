@@ -59,6 +59,9 @@ async function iniciar() {
     aposCarregamento: [],
     aposTrocarArea: [],
     aposMudarNovidades: [],
+    // A vista mudou (zoom, pan, inclinação ou rotação): a UI do mapa
+    // (ponteiro da bússola, botão 2D/3D) se reinterplica por aqui.
+    aoNavegar: [],
   };
 
   // `aoAnimar` reprojeta os pins enquanto a mola de retorno anima o mapa.
@@ -125,6 +128,12 @@ async function iniciar() {
       trocarArea,
       zoom: () => mapa.zoom(),
       limites: () => mapa.limitesZoom(),
+      // Rotação e inclinação (estilo Google Maps), tudo em graus:
+      girar: (deltaGraus) => { mapa.girar(deltaGraus); atualizar(); },
+      definirInclinacao: (graus) => { mapa.definirInclinacao(graus); atualizar(); },
+      inclinacao: () => mapa.inclinacao(),
+      inclinacaoPadrao: () => mapa.inclinacaoPadrao(),
+      rotacao: () => mapa.rotacao(),
     },
     ui: {
       abrirFicha: (local) => selecionar(local),
@@ -155,6 +164,7 @@ async function iniciar() {
   function atualizar() {
     mapa.render();
     hotspots.atualizar();
+    for (const fn of hooks.aoNavegar) fn();
   }
 
   function aplicarFiltro() {

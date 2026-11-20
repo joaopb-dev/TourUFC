@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Física de navegação do TourUFC via CDP — arraste, limites e mola elástica.
+"""Física de navegação do TourUFC via CDP — arraste, limites, mola elástica,
+rotação e inclinação da vista.
 
 Diferente de `suite_interacoes.py` (só DOM), esta suíte dispara gestos reais
-com `Input.dispatchMouseEvent` (eventos confiáveis, como um mouse de verdade)
-e lê o estado do mapa pelo gancho `window.__tour`. Cobre o que a vista
-inclinada alterou na matemática: o eixo Z do mundo é projetado encurtado pelo
-cosseno da inclinação — no arraste, no limite de 25% e no zoom sobre o cursor.
+com `Input.dispatchMouseEvent` / `Input.dispatchTouchEvent` (eventos
+confiáveis, como um mouse ou dedo de verdade) e lê o estado do mapa pelo
+gancho `window.__tour`. Cobre o que a vista inclinada alterou na matemática
+(o eixo Z projetado encurtado pelo cosseno no arraste, no limite de 25% e no
+zoom sobre o cursor) e os controles estilo Google Maps: rotação em torno do
+foco, inclinação limitada a 0..45°, Ctrl+arrastar/botão direito (orbita),
+twist e arraste paralelo de dois dedos, pinça, ponteiro da bússola e botão
+2D/3D.
 
 Uso: servidor estático de pé na raiz do projeto e `chromium-browser` no PATH.
 """
@@ -121,10 +126,12 @@ async def main():
             await avaliar('window.__tour.mapa.recentralizar(); window.__tour.atualizar();', espera=0.25)
 
         # ------------------------------------------------------------ gestos
-        async def mouse(tipo, x, y, button='none', buttons=0, click=1):
+        async def mouse(tipo, x, y, button='none', buttons=0, click=1, modifiers=0):
+            # `modifiers`: máscara do CDP (1=Alt, 2=Ctrl, 4=Meta, 8=Shift) —
+            # é assim que o Ctrl+arrastar (orbita) chega ao pointerdown.
             await cmd('Input.dispatchMouseEvent', {
                 'type': tipo, 'x': x, 'y': y, 'button': button,
-                'buttons': buttons, 'clickCount': click,
+                'buttons': buttons, 'clickCount': click, 'modifiers': modifiers,
             })
 
         async def pressionar(x, y):
@@ -142,6 +149,14 @@ async def main():
             for p in pontos[1:]:
                 await mover(*p)
             await soltar(*pontos[-1])
+
+        async def toque(tipo, pontos):
+            """Toque real via CDP (pontos como pares x, y) — gestos de dois
+            dedos (twist, arraste paralelo, pinça) viram pointer events."""
+            await cmd('Input.dispatchTouchEvent', {
+                'type': tipo,
+                'touchPoints': [{'x': x, 'y': y, 'id': n} for n, (x, y) in enumerate(pontos)],
+            })
 
         await cmd('Page.enable')
         await cmd('Runtime.enable')
@@ -353,6 +368,165 @@ async def main():
                    - max(p_parede['z'] - mvz, -i['alturaMundo'] / 2))
         check('parede do Z mantém 25% do conteúdo visível',
               visivel >= min(0.25 * i['alturaMundo'], 2 * mvz) - 1e-9, True, f'visível={visivel:.4f}')
+
+        # ============================ rotação e inclinação (estilo Maps)
+        # Controles novos: bússola com ponteiro girando, botão 2D/3D,
+        # Ctrl+arrastar/botão direito (orbita) e gestos de dois dedos
+        # (twist, arraste paralelo, pinça). A inclinação é limitada
+        # (0..45°) para o usuário nunca "deitar" o mapa.
+
+        await recentralizar()
+        i = await info()
+        check('vista base: norte a 0°, inclinação padrão de 25°',
+              (round(i['rot'], 9), round(i['incl'], 12)),
+              (0.0, round(math.radians(25), 12)))
+
+        # o ponto do conteúdo sob o foco continua no centro do quadro ao girar
+        await avaliar('window.__tour.mapa.centralizarEm(0.3, 0.4); window.__tour.atualizar();', espera=0.2)
+        foco_antes = await avaliar('const p = window.__tour.mapa.paraTela(0.3, 0.4); return {x: p.x, y: p.y};', espera=0)
+        await avaliar('window.__tour.mapa.girar(90); window.__tour.atualizar();', espera=0.3)
+        i = await info()
+        foco_depois = await avaliar('const p = window.__tour.mapa.paraTela(0.3, 0.4); return {x: p.x, y: p.y};', espera=0)
+        check('girar(90) aplica 90°', abs(i['rot'] - math.pi / 2) < 1e-9, True,
+              f"{math.degrees(i['rot']):.6f}°")
+        check('rotação mantém o ponto focado no centro do quadro',
+              abs(foco_depois['x'] - foco_antes['x']) < 0.5 and abs(foco_depois['y'] - foco_antes['y']) < 0.5,
+              True, f"{foco_antes} -> {foco_depois}")
+
+        # com 90° o arraste horizontal vira deslocamento de Z (o eixo do
+        # conteúdo trocou de lugar) e os pins continuam colados no dedo
+        await recentralizar()
+        await avaliar('window.__tour.mapa.girar(90); window.__tour.atualizar();', espera=0.3)
+        i = await info()
+        mpp = (2 * i['aspecto'] / i['zoom']) / quadro['w']
+        pin_antes = await pin('nulic')
+        dx_total = -300                        # arrasto para a esquerda
+        await arrastar([(sx, sy), (sx - 150, sy), (sx + dx_total, sy)])
+        p = await posicao()
+        esperado_z = -dx_total * mpp           # no 90° todo o deslocamento vira Z
+        check('arraste no X com 90° de rotação vira Z exato', abs(p['z'] - esperado_z) < 1e-6, True,
+              f"{p['z']:.9f} vs {esperado_z:.9f}")
+        check('arraste no X com rotação não desloca o X', abs(p['x']) < 1e-9, True, f"{p['x']:.3e}")
+        pin_depois = await pin('nulic')
+        desloc = (pin_depois[0] - pin_antes[0], pin_depois[1] - pin_antes[1])
+        check('pin acompanha o arraste na tela mesmo girado',
+              (abs(desloc[0] - dx_total) < 0.5, abs(desloc[1]) < 0.5), (True, True),
+              f'{pin_antes} -> {pin_depois}')
+
+        # --------------------------------- inclinação limitada (sem exagero)
+        await recentralizar()
+        await avaliar('window.__tour.mapa.definirInclinacao(90); window.__tour.atualizar();', espera=0.25)
+        i = await info()
+        check('inclinação é capada em 45° (não deixa o mapa deitar)',
+              abs(i['incl'] - i['inclMax']) < 1e-12 and abs(i['inclMax'] - math.radians(45)) < 1e-12,
+              True, f"incl={math.degrees(i['incl']):.1f}°")
+        await avaliar('window.__tour.mapa.definirInclinacao(-30); window.__tour.atualizar();', espera=0.25)
+        i = await info()
+        check('inclinação mínima em 0° (vista 2D pura)', round(i['incl'], 12), 0.0)
+
+        # a bússola volta a vista de fábrica (norte e inclinação padrão)
+        await avaliar('window.__tour.mapa.girar(-37); window.__tour.mapa.definirInclinacao(10);'
+                      'window.__tour.atualizar();', espera=0.25)
+        await recentralizar()
+        i = await info()
+        check('bússola zera a rotação', round(i['rot'], 9), 0.0)
+        check('bússola volta à inclinação padrão de 25°',
+              abs(i['incl'] - math.radians(25)) < 1e-12, True, f"{math.degrees(i['incl']):.4f}°")
+
+        # ------------------------------ parede do X com a vista girada 45°
+        await recentralizar()
+        await avaliar('window.__tour.mapa.girar(45); window.__tour.atualizar();', espera=0.3)
+        i = await info()
+        c45, s45 = math.cos(math.pi / 4), math.sin(math.pi / 4)
+        meia_x = i['aspecto'] / i['zoom']
+        meia_z = 1 / (i['zoom'] * math.cos(i['incl']))
+        ext_x = meia_x * c45 + meia_z * s45              # janela projetada no X
+        minimo = min(0.25 * i['larguraMundo'], 2 * ext_x)
+        alto_x = i['larguraMundo'] / 2 + ext_x - minimo
+        await avaliar('window.__tour.mapa.moverPorPixels(-4000, 0); window.__tour.atualizar();', espera=0.3)
+        p = await posicao()
+        borda = await na_borda()
+        check('parede do X é exata com 45° de rotação', abs(p['x'] - alto_x) < 1e-6, True,
+              f"{p['x']:.9f} vs {alto_x:.9f}")
+        check('naBorda true na parede girada', borda, True)
+
+        # -------------------------------- Ctrl+arrastar orbita a vista
+        await recentralizar()
+        await mouse('mousePressed', sx, sy, button='left', buttons=1, modifiers=2)   # Ctrl
+        await mouse('mouseMoved', sx + 100, sy - 100, button='none', buttons=1, modifiers=2)
+        await mouse('mouseReleased', sx + 100, sy - 100, button='left', buttons=0, modifiers=2)
+        i = await info()
+        p = await posicao()
+        check('Ctrl+arrastar gira a vista (100 px à direita = -25°)',
+              abs(i['rot'] - math.radians(-25)) < 1e-9, True, f"{math.degrees(i['rot']):.4f}°")
+        check('Ctrl+arrastar inclina (100 px para cima = +15°)',
+              abs(i['incl'] - math.radians(40)) < 1e-9, True, f"{math.degrees(i['incl']):.4f}°")
+        check('orbita não desloca o foco', (round(p['x'], 9), round(p['z'], 9)), (0.0, 0.0))
+
+        # o botão direito orbita igual (sem Ctrl)
+        await recentralizar()
+        await mouse('mousePressed', sx, sy, button='right', buttons=2)
+        await mouse('mouseMoved', sx - 80, sy, button='none', buttons=2)
+        await mouse('mouseReleased', sx - 80, sy, button='right', buttons=0)
+        i = await info()
+        check('botão direito também orbita (80 px à esquerda = +20°)',
+              abs(i['rot'] - math.radians(20)) < 1e-9, True, f"{math.degrees(i['rot']):.4f}°")
+
+        # ------------------------------ UI: ponteiro da bússola e 2D/3D
+        await recentralizar()
+        await avaliar('window.__tour.mapa.girar(90); window.__tour.atualizar();', espera=0.3)
+        pont = await avaliar("return document.querySelector('.ponteiro').style.transform;", espera=0)
+        check('ponteiro da bússola acompanha a rotação', pont, 'rotate(-90deg)')
+        vista = await avaliar("return document.querySelector('.btn-vista').textContent;", espera=0)
+        check('botão 2D/3D mostra "2D" com a vista inclinada', vista, '2D')
+        await avaliar("document.querySelector('.btn-vista').click();", espera=0.3)
+        i = await info()
+        vista = await avaliar("return document.querySelector('.btn-vista').textContent;", espera=0)
+        check('clique achata a vista (0°)', round(i['incl'], 12), 0.0)
+        check('botão passa a mostrar "3D"', vista, '3D')
+        await recentralizar()
+        pont = await avaliar("return document.querySelector('.ponteiro').style.transform;", espera=0)
+        check('bússola zera o ponteiro', pont, 'rotate(0deg)')
+
+        # ------------------------------------- dois dedos: twist e paralelo
+        await recentralizar()
+        await toque('touchStart', [(sx - 60, sy), (sx + 60, sy)])
+        # par horizontal -> vertical: o dedo oeste vai ao norte (90° horário)
+        await toque('touchMove', [(sx, sy - 60), (sx, sy + 60)])
+        await toque('touchEnd', [])
+        await asyncio.sleep(0.4)
+        i = await info()
+        p = await posicao()
+        check('twist de dois dedos gira a vista -90°',
+              abs(i['rot'] - math.radians(-90)) < 1e-6, True, f"{math.degrees(i['rot']):.4f}°")
+        check('twist não arrasta o mapa (foco intacto)',
+              (round(p['x'], 9), round(p['z'], 9)), (0.0, 0.0))
+
+        # arraste paralelo para cima -> inclina mais (25° + 18° = 43°)
+        await recentralizar()
+        await toque('touchStart', [(sx - 60, sy), (sx + 60, sy)])
+        for k in range(1, 7):
+            y = sy - 20 * k                     # passos de 20 px (gate <=15°)
+            await toque('touchMove', [(sx - 60, y), (sx + 60, y)])
+        await toque('touchEnd', [])
+        await asyncio.sleep(0.4)
+        i = await info()
+        check('arraste paralelo de dois dedos inclina a vista',
+              abs(math.degrees(i['incl']) - 43) < 1, True, f"{math.degrees(i['incl']):.2f}° (esperado 43°)")
+
+        # pinça: aproximar os dedos reduz o zoom
+        await recentralizar()
+        await avaliar('window.__tour.mapa.aplicarZoom(window.__tour.mapa.zoom() * 8);'
+                      'window.__tour.atualizar();', espera=0.25)
+        z0 = await zoom()
+        await toque('touchStart', [(sx - 80, sy), (sx + 80, sy)])
+        for metade in (60, 40, 20):
+            await toque('touchMove', [(sx - metade, sy), (sx + metade, sy)])
+        await toque('touchEnd', [])
+        await asyncio.sleep(0.4)
+        z1 = await zoom()
+        check('pinça de dois dedos reduz o zoom (x0,25)', abs(z1 - z0 * 0.25) < 1e-6, True,
+              f'{z0:.4f} -> {z1:.4f} (esperado {z0 * 0.25:.4f})')
 
         # ------------------------------------------------------- erros de JS
         await avaliar('return 1;', espera=0.3)               # drenagem final de eventos

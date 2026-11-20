@@ -17,8 +17,9 @@ python3 -m http.server 8000
 #    ficha, novidades, zoom, bússola, troca de área e fechamento)
 python3 testes/suite_interacoes.py                     # porta 8000
 
-# 3. física de navegação do mapa (27 verificações: arraste livre, limites
-#    de 25%, inclinação da vista, mola elástica e cancelamento)
+# 3. física de navegação do mapa (52 verificações: arraste livre, limites
+#    de 25%, inclinação da vista, mola elástica, cancelamento, rotação,
+#    inclinação limitada, orbita com Ctrl, gestos de dois dedos e UI)
 python3 testes/suite_mapa.py                           # porta 8000
 
 # 4. caminho de erro: sem WebGL só a mensagem aparece, e o Three.js
@@ -37,7 +38,7 @@ com renderização por software o WebGL pode levar alguns segundos.
 | Arquivo | Função |
 | --- | --- |
 | `suite_interacoes.py` | 40 verificações da experiência-alvo: seleção sincronizada lista ⇄ pin ⇄ ficha, busca sem caixa/acento, chips, "Nenhum resultado encontrado", sino de novidades, limites de zoom, recentralização, troca de área (área sem textura mantém a atual e avisa) e fechamento da ficha. |
-| `suite_mapa.py` | 27 verificações da navegação: arraste livre desde o primeiro gesto (exato em X e no Z, que é projetado pelo cosseno da inclinação da vista), zoom ancorado no cursor, clique que não arrasta, limites de arraste exatos mantendo 25% do conteúdo visível, mola de retorno (chega ao centro exato sem oscilar, desacelera, dura o previsto, pins voltam) e cancelamento por reagarrar ou centralizar. Dispara gestos reais via `Input.dispatchMouseEvent` e lê o estado pelo gancho `window.__tour`. |
+| `suite_mapa.py` | 52 verificações da navegação: arraste livre desde o primeiro gesto (exato em X e no Z, que é projetado pelo cosseno da inclinação da vista), zoom ancorado no cursor, clique que não arrasta, limites de arraste exatos mantendo 25% do conteúdo visível (inclusive com a vista girada 45°), mola de retorno (chega ao centro exato sem oscilar, desacelera, dura o previsto, pins voltam) e cancelamento por reagarrar ou centralizar. Cobre também os controles estilo Google Maps: rotação em torno do foco sem tirar o ponto do centro do quadro, arraste que troca de eixo ao girar 90°, inclinação limitada a 0..45°, reset da bússola (norte + 25°), Ctrl+arrastar e botão direito (orbita), twist e arraste paralelo de dois dedos (com gate de pinça), pinça, ponteiro da bússola e botão 2D/3D. Dispara gestos reais via `Input.dispatchMouseEvent` / `Input.dispatchTouchEvent` e lê o estado pelo gancho `window.__tour`. |
 | `sem_webgl.py` | Desliga WebGL e confere a mensagem "Seu navegador não é compatível com o Tour UFC", ausência de pins e lista, e que nenhum recurso de mapa é requisitado. |
 | `cdp.py` | Ferramenta: screenshot via CDP (quadro composto, diferente do modo headless simples) e leitura de estado. Aceita uma expressão JS opcional como quarto argumento, executada antes da captura. |
 

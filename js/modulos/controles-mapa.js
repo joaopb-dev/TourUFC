@@ -19,7 +19,9 @@ function botao({ classe, rotulo, aoClicar, svg }) {
 }
 
 const SVG_SINO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
-const SVG_BUSSOLA = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 6l3 9-3 3-3-3z"/></svg>';
+// A bússola tem o aro fixo e o ponteiro (agulha) girando junto com a vista:
+// o ponteiro aponta sempre para o norte do conteúdo no quadro.
+const SVG_BUSSOLA = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><g class="ponteiro"><path d="M12 6l3 9-3 3-3-3z"/></g></svg>';
 
 /* ------------------------------------------------------------------ zoom */
 
@@ -53,6 +55,60 @@ registrarControle({
       svg: SVG_BUSSOLA,
       aoClicar: () => ctx.mapa.recentralizar(),
     });
+  },
+  aoMontar(el, ctx) {
+    const ponteiro = el.querySelector('.ponteiro');
+    let ultimoGraus = null;
+    ctx.hooks.aoNavegar.push(() => {
+      const graus = Math.round(ctx.mapa.rotacao());
+      if (graus === ultimoGraus) return;   // não reescreve o DOM à toa
+      ultimoGraus = graus;
+      // A vista girou θ no sentido anti-horário? A agulha (que aponta para
+      // o norte) gira o mesmo ângulo no sentido horário (rotate(−θ)).
+      ponteiro.style.transform = `rotate(${-graus}deg)`;
+      const incl = Math.round(ctx.mapa.inclinacao());
+      const rotulo = `Recentralizar a vista — norte a ${graus}°, inclinação ${incl}°`;
+      el.title = rotulo;
+      el.setAttribute('aria-label', rotulo);
+    });
+  },
+});
+
+/* ------------------------------------------------------- vista 2D / 3D */
+
+registrarControle({
+  id: 'vista-2d-3d',
+  local: 'controles',
+  ordem: 30,
+  titulo: 'Alternar entre vista 2D e 3D',
+  render(ctx) {
+    return botao({
+      classe: 'btn-vista',
+      rotulo: 'Alternar entre vista 2D e 3D',
+      aoClicar: () => {
+        // Como no Maps: se está inclinado, achata (2D); se está chato,
+        // volta para a inclinação padrão (3D).
+        const incl = ctx.mapa.inclinacao();
+        ctx.mapa.definirInclinacao(incl > 0 ? 0 : ctx.mapa.inclinacaoPadrao());
+      },
+    });
+  },
+  aoMontar(el, ctx) {
+    function desenhar() {
+      const incl = Math.round(ctx.mapa.inclinacao());
+      const modo = incl === 0 ? '3D' : '2D';   // rótulo = modo que o botão ativa
+      if (el.dataset.modo === modo) return;
+      el.dataset.modo = modo;
+      el.textContent = modo;
+      const rotulo = incl === 0
+        ? 'Ver o campus em 3D (vista inclinada)'
+        : 'Voltar à vista 2D (vista de cima)';
+      el.title = rotulo;
+      el.setAttribute('aria-label', rotulo);
+      el.setAttribute('aria-pressed', String(incl !== 0));
+    }
+    desenhar();
+    ctx.hooks.aoNavegar.push(desenhar);
   },
 });
 

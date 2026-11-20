@@ -23,8 +23,13 @@ const MARGEM = 0.88;
 const ALTURA_SOL = 18;   // altura do "sol": quanto mais alto, mais curta a sombra
 // Inclinação da vista: em vez de olhar reto para baixo, a câmera recua um
 // pouco para trás (0 = vista de cima pura; 25° = leve — os blocos mostram as
-// laterais e o campus ganha volume sem virar 3D pleno).
-const INCLINACAO = 25 * Math.PI / 180;
+// laterais e o campus ganha volume sem virar 3D pleno). É o padrão e também
+// o estado para o qual a bússola / o botão 2D voltam.
+const INCLINACAO_PADRAO = 25 * Math.PI / 180;
+// Teto da inclinação que o usuário pode pedir (0..45°): dá a leitura de
+// volume do 3D sem deixar o mapa "deitar" — controle estilo Google Maps,
+// mas com amarras para a vista nunca virar impossível de ler.
+const INCLINACAO_MAX = 45 * Math.PI / 180;
 const DISTANCIA_CAMERA = 18;   // distância da câmera até o centro da vista
 // Parcela mínima do conteúdo que precisa continuar no quadro depois de um
 // arraste: dá folga de verdade para o mapa sair do lugar (sem parecer
@@ -71,19 +76,34 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   camera.up.set(0, 0, -1);
   const foco = { x: 0, z: 0 };   // ponto do terreno no centro do quadro
+  let inclinao = INCLINACAO_PADRAO;   // inclinação atual (rad); 0 = vista 2D
+  let rotacao = 0;                   // rotação do conteúdo (rad); 0 = norte
+
+  const mundo = new THREE.Group();   // modelo carregado, centrado na origem
+  scene.add(mundo);
 
   function posicionarCamera() {
     camera.position.set(
       foco.x,
-      DISTANCIA_CAMERA * Math.cos(INCLINACAO),
-      foco.z + DISTANCIA_CAMERA * Math.sin(INCLINACAO),
+      DISTANCIA_CAMERA * Math.cos(inclinao),
+      foco.z + DISTANCIA_CAMERA * Math.sin(inclinao),
     );
     camera.lookAt(foco.x, 0, foco.z);
+
+    // O conteúdo gira em torno do foco: o ponto central continua no centro
+    // do quadro e só a leitura da vista muda (como a bússola do Maps). O
+    // "sol" acompanha o centro do conteúdo girado — senão a sombra (câmera
+    // fixa em ±1,7) recorta quando a vista está deslocada do centro.
+    const c = Math.cos(rotacao);
+    const s = Math.sin(rotacao);
+    const tx = foco.x - (foco.x * c + foco.z * s);
+    const tz = foco.z - (-foco.x * s + foco.z * c);
+    mundo.rotation.y = rotacao;
+    mundo.position.set(tx, 0, tz);
+    sol.position.set(5 + tx, ALTURA_SOL, -4 + tz);
+    sol.target.position.set(tx, 0, tz);
   }
   posicionarCamera();
-
-  const mundo = new THREE.Group();   // modelo carregado, centrado na origem
-  scene.add(mundo);
 
   let alturaMundo = 2;
   let aspecto = 1;
@@ -106,9 +126,14 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   /** Mínimo = conteúdo inteiro visível; máximo = definido pela área. */
   function recalcularZoom(ajustarZoom = true) {
     // Na inclinação o conteúdo encolhe na vertical (foreshortening pelo
-    // cosseno), então o enquadramento mínimo acompanha para o quadro
-    // continuar cheio de terreno.
-    const enquadramento = Math.min(aspecto, 2 / (alturaMundo * Math.cos(INCLINACAO)));
+    // cosseno) e a rotação troca a "largura" de lugar: o enquadramento
+    // mínimo acompanha a AABB do conteúdo já girado, para o quadro
+    // continuar cheio de terreno em qualquer ângulo.
+    const c = Math.abs(Math.cos(rotacao));
+    const s = Math.abs(Math.sin(rotacao));
+    const larg = LARGURA_MUNDO * c + alturaMundo * s;
+    const alt = LARGURA_MUNDO * s + alturaMundo * c;
+    const enquadramento = Math.min(2 * aspecto / larg, 2 / (alt * Math.cos(inclinao)));
     zoomMin = enquadramento;
     if (ajustarZoom) camera.zoom = limitar(camera.zoom, zoomMin, zoomMax);
   }
@@ -136,10 +161,16 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
 
   function limitarPosicao() {
     // Na inclinação o eixo Z do mundo aparece encurtado na tela pelo cosseno
-    // da inclinação: o mesmo quadro cobre mais terreno em profundidade.
-    const cosseno = Math.cos(INCLINACAO);
-    const eixoX = travarEixo(foco.x, LARGURA_MUNDO, aspecto / camera.zoom);
-    const eixoZ = travarEixo(foco.z, alturaMundo, 1 / (camera.zoom * cosseno));
+    // da inclinação; com rotação, a janela visível projeta sobre cada eixo do
+    // conteúdo a soma das duas meias-medidas giradas — em θ = 0 isso reduz
+    // exatamente ao caso sem rotação.
+    const cosseno = Math.cos(inclinao);
+    const c = Math.abs(Math.cos(rotacao));
+    const s = Math.abs(Math.sin(rotacao));
+    const meiaX = aspecto / camera.zoom;
+    const meiaZ = 1 / (camera.zoom * cosseno);
+    const eixoX = travarEixo(foco.x, LARGURA_MUNDO, meiaX * c + meiaZ * s);
+    const eixoZ = travarEixo(foco.z, alturaMundo, meiaX * s + meiaZ * c);
     naBorda = eixoX.naBorda || eixoZ.naBorda;
     foco.x = eixoX.pos;
     foco.z = eixoZ.pos;
@@ -224,10 +255,16 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     pararMola();
     if (!larguraPx || !alturaPx) return;
     const mundoPorPx = (2 * aspecto / camera.zoom) / larguraPx;
-    foco.x -= dxPx * mundoPorPx;
-    // A tela "sobe" no sentido -Z; na inclinação o eixo Z também é projetado
-    // encurtado pelo cosseno — por px percorrido na tela, o foco anda mais.
-    foco.z -= dyPx * (mundoPorPx / Math.cos(INCLINACAO));
+    // Tela -> mundo: a tela "sobe" no sentido -Z e, na inclinação, o eixo Z
+    // é projetado encurtado pelo cosseno — por px percorrido o foco anda mais.
+    const deslX = -dxPx * mundoPorPx;
+    const deslZ = -dyPx * (mundoPorPx / Math.cos(inclinao));
+    // Mundo -> conteúdo: com a vista girada, o mesmo arraste desloca o foco
+    // ao contrário da rotação (o conteúdo gira junto com o dedo).
+    const c = Math.cos(rotacao);
+    const s = Math.sin(rotacao);
+    foco.x += deslX * c - deslZ * s;
+    foco.z += deslX * s + deslZ * c;
     limitarPosicao();
     camera.updateProjectionMatrix();
   }
@@ -240,14 +277,17 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     pararMola();
     const antes = camera.zoom;
     const alvo = limitar(novoZoom, zoomMin, zoomMax);
-    // O ponto do terreno sob o cursor: em Z ele sai dividido pelo cosseno da
-    // inclinação (mesma razão de projecção usada no arraste).
-    const cosseno = Math.cos(INCLINACAO);
-    const mundoX = foco.x + ndcX * (aspecto / antes);
-    const mundoZ = foco.z - ndcY / (antes * cosseno);
+    // O terreno sob o cursor fica onde está: em Z ele sai dividido pelo
+    // cosseno da inclinação (mesma razão de projecção do arraste) e, com
+    // rotação, o deslocamento gira para o espaço do conteúdo.
+    const cosseno = Math.cos(inclinao);
+    const deslX = ndcX * aspecto * (1 / antes - 1 / alvo);
+    const deslZ = -ndcY * (1 / antes - 1 / alvo) / cosseno;
+    const c = Math.cos(rotacao);
+    const s = Math.sin(rotacao);
     camera.zoom = alvo;
-    foco.x = mundoX - ndcX * (aspecto / alvo);
-    foco.z = mundoZ + ndcY / (alvo * cosseno);
+    foco.x += deslX * c - deslZ * s;
+    foco.z += deslX * s + deslZ * c;
     limitarPosicao();
     camera.updateProjectionMatrix();
     return alvo;
@@ -264,16 +304,55 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
 
   function recentralizar() {
     pararMola();
+    // A bússola volta a vista ao estado de fábrica: norte para cima e a
+    // inclinação padrão (25°) — além de zoom mínimo e centro do conteúdo.
+    rotacao = 0;
+    inclinao = INCLINACAO_PADRAO;
+    recalcularZoom(true);
     camera.zoom = zoomMin;
     centralizarEm(0.5, 0.5);
   }
 
+  /**
+   * Gira a vista em torno do foco (rotação no estilo da bússola do Google
+   * Maps). `deltaGraus` positivo gira o conteúdo no sentido anti-horário;
+   * o ângulo é normalizado em ±180° para não crescer sem limite.
+   */
+  function girar(deltaGraus) {
+    if (!Number.isFinite(deltaGraus)) return;
+    pararMola();
+    const rad = deltaGraus * Math.PI / 180;
+    rotacao = Math.atan2(Math.sin(rotacao + rad), Math.cos(rotacao + rad));
+    recalcularZoom(true);   // a AABB girada pode exigir mais zoom mínimo
+    limitarPosicao();
+    camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Ajusta a inclinação da vista, em graus. Limitada a 0..45°: o usuário
+   * pede o quanto quiser de "3D", mas nunca deita o mapa (vista ilegível).
+   */
+  function definirInclinacao(graus) {
+    if (!Number.isFinite(graus)) return;
+    pararMola();
+    inclinao = limitar(graus * Math.PI / 180, 0, INCLINACAO_MAX);
+    recalcularZoom(true);
+    limitarPosicao();
+    camera.updateProjectionMatrix();
+  }
+
   /** Coordenada normalizada (0..1) -> pixel CSS do canvas. */
   function paraTela(nx, ny) {
+    // O conteúdo chega girado em torno do foco (R·(p − foco) + foco): o
+    // ponto projetado é o da coordenada já rotacionada para o mundo.
+    const dx = (nx - 0.5) * LARGURA_MUNDO - foco.x;
+    const dz = (ny - 0.5) * alturaMundo - foco.z;
+    const c = Math.cos(rotacao);
+    const s = Math.sin(rotacao);
     const ponto = new THREE.Vector3(
-      (nx - 0.5) * LARGURA_MUNDO,
+      foco.x + dx * c + dz * s,
       0,
-      (ny - 0.5) * alturaMundo,
+      foco.z - dx * s + dz * c,
     ).project(camera);
     return {
       x: (ponto.x * 0.5 + 0.5) * larguraPx,
@@ -356,7 +435,20 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     });
   }
 
-  function alturaMundoInfo() { return { alturaMundo, larguraMundo: LARGURA_MUNDO, aspecto, zoom: camera.zoom, zoomMin, zoomMax, incl: INCLINACAO }; }
+  function alturaMundoInfo() {
+    return {
+      alturaMundo,
+      larguraMundo: LARGURA_MUNDO,
+      aspecto,
+      zoom: camera.zoom,
+      zoomMin,
+      zoomMax,
+      incl: inclinao,                 // inclinação atual (rad)
+      inclMax: INCLINACAO_MAX,        // teto do controle (rad)
+      inclPadrao: INCLINACAO_PADRAO,  // inclinação de fábrica (rad)
+      rot: rotacao,                   // rotação atual (rad)
+    };
+  }
 
   return {
     render,
@@ -365,6 +457,11 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     aplicarZoom,
     centralizarEm,
     recentralizar,
+    girar,
+    definirInclinacao,
+    inclinacao: () => inclinao * 180 / Math.PI,     // em graus
+    inclinacaoPadrao: () => INCLINACAO_PADRAO * 180 / Math.PI,
+    rotacao: () => rotacao * 180 / Math.PI,         // em graus
     carregarModelo,
     carregarTextura,
     paraTela,

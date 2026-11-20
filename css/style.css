@@ -304,6 +304,16 @@ html, body {
 .pilha-zoom .btn-mapa { border-radius: 0; box-shadow: none; }
 .pilha-zoom .btn-mapa + .btn-mapa { border-top: 1px solid #e3e3e3; }
 
+/* ponteiro da bússola: gira com a vista (o aro fica fixo) */
+.bussola .ponteiro {
+  transform-box: view-box;
+  transform-origin: 12px 12px;          /* centro do viewBox 24x24 */
+  transition: transform .18s ease-out;  /* a agulha segue a vista suave */
+}
+
+/* botão 2D/3D: rótulo curto no lugar do ícone */
+.btn-vista { font-size: 14px; font-weight: 800; letter-spacing: .02em; }
+
 .notificacoes { top: 16px; right: 16px; }
 .btn-sino { position: relative; color: var(--verde-escuro); }
 .btn-sino .badge {

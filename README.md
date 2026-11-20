@@ -25,7 +25,7 @@ interface inteira (barra lateral, pins, ficha) é HTML/CSS por cima do canvas.
 | Zona | Conteúdo |
 | --- | --- |
 | **Esquerda — barra lateral** | Logo, busca em tempo real, chips de categoria e lista rolável de locais |
-| **Centro — mapa** | Modelo do campus em 3D visto de cima, pins com badge de novidade, sino, zoom `+`/`−`, bússola e seletor de área |
+| **Centro — mapa** | Modelo do campus em 3D visto de cima, pins com badge de novidade, sino, zoom `+`/`−`, bússola, vista 2D/3D e seletor de área |
 | **Direita — ficha** | Foto, endereço, contatos, links externos, bolsas e novidades do órgão selecionado |
 
 Clicar num pin, num item da lista ou num resultado de busca mantém os três em
@@ -105,6 +105,14 @@ sem conteúdo exportado).
   O arraste é livre desde o primeiro gesto, sempre mantendo ao menos 25% do
   conteúdo no quadro. Ao soltar encostado no limite, o mapa volta ao centro
   com um puxão elástico (mola amortecida, sem oscilar).
+- **Rotação e ângulo, como no Google Maps:** a bússola gira junto com a vista
+  (e o clique nela devolve norte para cima, com a inclinação padrão), o botão
+  `2D`/`3D` achata ou inclina a vista, e o **Ctrl+arrastar** (ou botão direito)
+  orbita: horizontal gira, vertical inclina. No toque, dois dedos fazem
+  **twist** para girar, **arraste paralelo** para inclinar na vertical (e
+  mover na horizontal) e **pinça** para zoom. A inclinação é limitada a
+  **0..45°** — dá para pedir mais "3D", mas nunca deitar o mapa. Tudo gira em
+  torno do ponto focado, então o centro do quadro não sai do lugar.
 
 ---
 
@@ -126,7 +134,9 @@ comportamento:
 - `suite_interacoes.py` — suíte de interações via Chrome DevTools Protocol
   (lista ⇄ pin ⇄ ficha, busca, chips, sino, zoom, bússola, troca de área)
 - `suite_mapa.py` — física de navegação: arraste livre, limites de 25%,
-  inclinação da vista, mola elástica de retorno e cancelamentos
+  inclinação da vista, mola elástica de retorno e cancelamentos, mais os
+  controles de rotação/ângulo (bússola, 2D/3D, Ctrl+arrastar e gestos de
+  dois dedos)
 - `sem_webgl.py` — caminho de falha: sem WebGL a mensagem aparece e o Three.js
   nem é baixado
 - `cdp.py` — utilitário comum de captura via CDP
