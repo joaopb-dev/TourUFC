@@ -1,8 +1,9 @@
 # Testes do TourUFC
 
-Os três scripts dirigem o Chromium pelo Chrome DevTools Protocol: navegam,
-esperam em tempo real, disparam cliques e leem o DOM. Servem de evidência para
-a Seção 8 do plano e de regressão para os bugs já corrigidos (Seção 9.1).
+Os quatro scripts dirigem o Chromium pelo Chrome DevTools Protocol: navegam,
+esperam em tempo real, disparam cliques e leem o DOM (e, no caso do mapa, o
+estado da câmera). Servem de evidência para a Seção 8 do plano e de regressão
+para os bugs já corrigidos (Seção 9.1).
 
 **Pré-requisitos:** `chromium-browser`, Python 3 com o pacote `websockets`.
 
@@ -16,11 +17,15 @@ python3 -m http.server 8000
 #    ficha, novidades, zoom, bússola, troca de área e fechamento)
 python3 testes/suite_interacoes.py                     # porta 8000
 
-# 3. caminho de erro: sem WebGL só a mensagem aparece, e o Three.js
+# 3. física de navegação do mapa (27 verificações: arraste livre, limites
+#    de 25%, inclinação da vista, mola elástica e cancelamento)
+python3 testes/suite_mapa.py                           # porta 8000
+
+# 4. caminho de erro: sem WebGL só a mensagem aparece, e o Three.js
 #    nem chega a ser baixado
 python3 testes/sem_webgl.py http://localhost:8000/ sem_webgl.png 6
 
-# 4. utilitário: screenshot + estado da página de qualquer URL
+# 5. utilitário: screenshot + estado da página de qualquer URL
 python3 testes/cdp.py http://localhost:8000/ captura.png 12
 ```
 
@@ -32,6 +37,7 @@ com renderização por software o WebGL pode levar alguns segundos.
 | Arquivo | Função |
 | --- | --- |
 | `suite_interacoes.py` | 40 verificações da experiência-alvo: seleção sincronizada lista ⇄ pin ⇄ ficha, busca sem caixa/acento, chips, "Nenhum resultado encontrado", sino de novidades, limites de zoom, recentralização, troca de área (área sem textura mantém a atual e avisa) e fechamento da ficha. |
+| `suite_mapa.py` | 27 verificações da navegação: arraste livre desde o primeiro gesto (exato em X e no Z, que é projetado pelo cosseno da inclinação da vista), zoom ancorado no cursor, clique que não arrasta, limites de arraste exatos mantendo 25% do conteúdo visível, mola de retorno (chega ao centro exato sem oscilar, desacelera, dura o previsto, pins voltam) e cancelamento por reagarrar ou centralizar. Dispara gestos reais via `Input.dispatchMouseEvent` e lê o estado pelo gancho `window.__tour`. |
 | `sem_webgl.py` | Desliga WebGL e confere a mensagem "Seu navegador não é compatível com o Tour UFC", ausência de pins e lista, e que nenhum recurso de mapa é requisitado. |
 | `cdp.py` | Ferramenta: screenshot via CDP (quadro composto, diferente do modo headless simples) e leitura de estado. Aceita uma expressão JS opcional como quarto argumento, executada antes da captura. |
 

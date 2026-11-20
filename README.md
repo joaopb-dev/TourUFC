@@ -16,10 +16,9 @@ entrega arquivos estáticos; tudo o mais (renderização, navegação, busca,
 filtros, ficha) roda no navegador.
 
 O mapa não é uma imagem estática: é o **modelo 3D do campus (`UFC.obj`) renderizado
-ao vivo** numa câmera ortográfica vista de cima, com iluminação e sombra
-direcional — o relevo dos prédios e das árvores salta do terreno como num mapa
-de satélite. A interface inteira (barra lateral, pins, ficha) é HTML/CSS por
-cima do canvas.
+ao vivo** numa câmera ortográfica vista de cima, com inclinação leve — os blocos
+mostram as laterais e ganham volume —, iluminação e sombra direcional. A
+interface inteira (barra lateral, pins, ficha) é HTML/CSS por cima do canvas.
 
 ### Três zonas
 
@@ -99,8 +98,9 @@ sem conteúdo exportado).
   referências de face antes das posições de vértice.
 - Os objetos são classificados pelo prefixo do nome no Blender e recebem cor por
   categoria: chão, construção e vegetação.
-- A câmera é ortográfica olhando de cima (`js/map.js`), então a leitura é a de
-  um mapa 2D — mas com sombra projetada, que dá o relevo.
+- A câmera é ortográfica vista de cima com inclinação leve de 25° (`js/map.js`),
+  então a leitura é a de um mapa 2D — mas a inclinação mostra as laterais dos
+  blocos e a sombra projetada completa o relevo.
 - **Navegação:** arraste com mouse ou dedo, zoom por rola/pinça e pelos botões.
   O arraste é livre desde o primeiro gesto, sempre mantendo ao menos 25% do
   conteúdo no quadro. Ao soltar encostado no limite, o mapa volta ao centro
@@ -125,6 +125,8 @@ comportamento:
 
 - `suite_interacoes.py` — suíte de interações via Chrome DevTools Protocol
   (lista ⇄ pin ⇄ ficha, busca, chips, sino, zoom, bússola, troca de área)
+- `suite_mapa.py` — física de navegação: arraste livre, limites de 25%,
+  inclinação da vista, mola elástica de retorno e cancelamentos
 - `sem_webgl.py` — caminho de falha: sem WebGL a mensagem aparece e o Three.js
   nem é baixado
 - `cdp.py` — utilitário comum de captura via CDP

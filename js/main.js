@@ -63,7 +63,10 @@ async function iniciar() {
 
   // `aoAnimar` reprojeta os pins enquanto a mola de retorno anima o mapa.
   const mapa = criarMapa({ canvas, aoAnimar: atualizar });
-  window.__mapa = mapa;   // TEMP: depuração de enquadramento
+  // Gancho de teste/diagnóstico: testes/suite_mapa.py e testes/cdp.py leem o
+  // mapa, o estado e forçam a reprojeção dos pins por aqui (o navegador não
+  // expõe nada além disso).
+  window.__tour = { mapa, estado, atualizar };
   mapa.ajustarTamanho();
 
   const aviso = {

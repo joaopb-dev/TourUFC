@@ -2,9 +2,10 @@
  * Camada de renderização: o modelo 3D do campus (`UFC.obj`) visto de cima,
  * como um mapa de satélite.
  *
- * A câmera é ortográfica e olha para baixo (vista superior), então a leitura é
- * a de um mapa 2D — mas com relevo e sombra projetada dados pela luz
- * direcional, que é o que faz prédios e árvores saltarem do terreno.
+ * A câmera é ortográfica e olha de leve para baixo (vista superior
+ * inclinada): a leitura continua a de um mapa 2D, mas a inclinação mostra as
+ * laterais dos blocos — volume reforçado pelo relevo e pela sombra projetada
+ * da luz direcional.
  *
  * Unidades de mundo: largura de referência = 2; a altura acompanha a proporção
  * do conteúdo do modelo. Coordenadas de conteúdo entram normalizadas
@@ -20,6 +21,11 @@ const LARGURA_MUNDO = 2;
 // (como no mapa ilustrado original) e espaço para a sombra cair sem cortar.
 const MARGEM = 0.88;
 const ALTURA_SOL = 18;   // altura do "sol": quanto mais alto, mais curta a sombra
+// Inclinação da vista: em vez de olhar reto para baixo, a câmera recua um
+// pouco para trás (0 = vista de cima pura; 25° = leve — os blocos mostram as
+// laterais e o campus ganha volume sem virar 3D pleno).
+const INCLINACAO = 25 * Math.PI / 180;
+const DISTANCIA_CAMERA = 18;   // distância da câmera até o centro da vista
 // Parcela mínima do conteúdo que precisa continuar no quadro depois de um
 // arraste: dá folga de verdade para o mapa sair do lugar (sem parecer
 // engessado), mas nunca some ele de vez da tela.
@@ -60,11 +66,21 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   // Preenche as sombras para o campus não ficar com breu ilegível.
   scene.add(new THREE.AmbientLight(0xffffff, 0.38));
 
-  // Vista superior: câmera no alto apontando para o chão, "norte" para cima.
+  // Vista superior inclinada: a câmera recua atrás do ponto central do
+  // terreno e o encara de leve — é o que dá volume aos blocos.
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-  camera.position.set(0, ALTURA_SOL, 0);
   camera.up.set(0, 0, -1);
-  camera.lookAt(0, 0, 0);
+  const foco = { x: 0, z: 0 };   // ponto do terreno no centro do quadro
+
+  function posicionarCamera() {
+    camera.position.set(
+      foco.x,
+      DISTANCIA_CAMERA * Math.cos(INCLINACAO),
+      foco.z + DISTANCIA_CAMERA * Math.sin(INCLINACAO),
+    );
+    camera.lookAt(foco.x, 0, foco.z);
+  }
+  posicionarCamera();
 
   const mundo = new THREE.Group();   // modelo carregado, centrado na origem
   scene.add(mundo);
@@ -89,7 +105,10 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
 
   /** Mínimo = conteúdo inteiro visível; máximo = definido pela área. */
   function recalcularZoom(ajustarZoom = true) {
-    const enquadramento = Math.min(aspecto, 2 / alturaMundo);
+    // Na inclinação o conteúdo encolhe na vertical (foreshortening pelo
+    // cosseno), então o enquadramento mínimo acompanha para o quadro
+    // continuar cheio de terreno.
+    const enquadramento = Math.min(aspecto, 2 / (alturaMundo * Math.cos(INCLINACAO)));
     zoomMin = enquadramento;
     if (ajustarZoom) camera.zoom = limitar(camera.zoom, zoomMin, zoomMax);
   }
@@ -116,11 +135,15 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   }
 
   function limitarPosicao() {
-    const eixoX = travarEixo(camera.position.x, LARGURA_MUNDO, aspecto / camera.zoom);
-    const eixoZ = travarEixo(camera.position.z, alturaMundo, 1 / camera.zoom);
+    // Na inclinação o eixo Z do mundo aparece encurtado na tela pelo cosseno
+    // da inclinação: o mesmo quadro cobre mais terreno em profundidade.
+    const cosseno = Math.cos(INCLINACAO);
+    const eixoX = travarEixo(foco.x, LARGURA_MUNDO, aspecto / camera.zoom);
+    const eixoZ = travarEixo(foco.z, alturaMundo, 1 / (camera.zoom * cosseno));
     naBorda = eixoX.naBorda || eixoZ.naBorda;
-    camera.position.x = eixoX.pos;
-    camera.position.z = eixoZ.pos;
+    foco.x = eixoX.pos;
+    foco.z = eixoZ.pos;
+    posicionarCamera();
   }
 
   /** Cancela o retorno elástico: o toque do usuário assume o controle. */
@@ -133,13 +156,13 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
    */
   function recentralizarComMola() {
     pararMola();
-    if (camera.position.x === 0 && camera.position.z === 0) return;
+    if (foco.x === 0 && foco.z === 0) return;
     // Amortecimento crítico (ζ = 1): puxão elástico que dispara de uma vez e
     // chega suave, sem oscilação. w = √rigidez define o quão rápido "puxa".
     const w = Math.sqrt(RIGIDEZ_MOLA);
     const estado = {
-      x: camera.position.x,
-      z: camera.position.z,
+      x: foco.x,
+      z: foco.z,
       vx: 0,
       vz: 0,
       anterior: performance.now(),
@@ -161,15 +184,17 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
       estado.z = (estado.z + comumZ) * decaimento;
       estado.vx = (estado.vx - comumX * w) * decaimento;
       estado.vz = (estado.vz - comumZ * w) * decaimento;
-      camera.position.x = estado.x;
-      camera.position.z = estado.z;
+      foco.x = estado.x;
+      foco.z = estado.z;
+      limitarPosicao();
       aoAnimar();
       const parou = Math.abs(estado.x) < 0.003 && Math.abs(estado.vx) < 0.08
         && Math.abs(estado.z) < 0.003 && Math.abs(estado.vz) < 0.08;
       if (parou) {
         pararMola();
-        camera.position.x = 0;
-        camera.position.z = 0;
+        foco.x = 0;
+        foco.z = 0;
+        limitarPosicao();
         aoAnimar();
         return;
       }
@@ -199,10 +224,10 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     pararMola();
     if (!larguraPx || !alturaPx) return;
     const mundoPorPx = (2 * aspecto / camera.zoom) / larguraPx;
-    camera.position.x -= dxPx * mundoPorPx;
-    // A tela "sobe" no sentido -Z, então arrastar para baixo move a câmera
-    // para -Z (o conteúdo desce junto com o dedo).
-    camera.position.z -= dyPx * mundoPorPx;
+    foco.x -= dxPx * mundoPorPx;
+    // A tela "sobe" no sentido -Z; na inclinação o eixo Z também é projetado
+    // encurtado pelo cosseno — por px percorrido na tela, o foco anda mais.
+    foco.z -= dyPx * (mundoPorPx / Math.cos(INCLINACAO));
     limitarPosicao();
     camera.updateProjectionMatrix();
   }
@@ -215,11 +240,14 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     pararMola();
     const antes = camera.zoom;
     const alvo = limitar(novoZoom, zoomMin, zoomMax);
-    const mundoX = camera.position.x + ndcX * (aspecto / antes);
-    const mundoZ = camera.position.z - ndcY * (1 / antes);
+    // O ponto do terreno sob o cursor: em Z ele sai dividido pelo cosseno da
+    // inclinação (mesma razão de projecção usada no arraste).
+    const cosseno = Math.cos(INCLINACAO);
+    const mundoX = foco.x + ndcX * (aspecto / antes);
+    const mundoZ = foco.z - ndcY / (antes * cosseno);
     camera.zoom = alvo;
-    camera.position.x = mundoX - ndcX * (aspecto / alvo);
-    camera.position.z = mundoZ + ndcY * (1 / alvo);
+    foco.x = mundoX - ndcX * (aspecto / alvo);
+    foco.z = mundoZ + ndcY / (alvo * cosseno);
     limitarPosicao();
     camera.updateProjectionMatrix();
     return alvo;
@@ -228,8 +256,8 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
   function centralizarEm(nx, ny, novoZoom) {
     pararMola();
     if (Number.isFinite(novoZoom)) camera.zoom = limitar(novoZoom, zoomMin, zoomMax);
-    camera.position.x = (nx - 0.5) * LARGURA_MUNDO;
-    camera.position.z = (ny - 0.5) * alturaMundo;
+    foco.x = (nx - 0.5) * LARGURA_MUNDO;
+    foco.z = (ny - 0.5) * alturaMundo;
     limitarPosicao();
     camera.updateProjectionMatrix();
   }
@@ -328,7 +356,7 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     });
   }
 
-  function alturaMundoInfo() { return { alturaMundo, larguraMundo: LARGURA_MUNDO, aspecto, zoom: camera.zoom, zoomMin, zoomMax }; }
+  function alturaMundoInfo() { return { alturaMundo, larguraMundo: LARGURA_MUNDO, aspecto, zoom: camera.zoom, zoomMin, zoomMax, incl: INCLINACAO }; }
 
   return {
     render,
@@ -343,9 +371,8 @@ export function criarMapa({ canvas, aoAnimar = () => {} }) {
     dimensoes,
     alturaMundoInfo,
     naBorda: () => naBorda,
-    posicao: () => ({ x: camera.position.x, z: camera.position.z }),
+    posicao: () => ({ x: foco.x, z: foco.z }),
     recentralizarComMola,
-    __scene: scene,   // TEMP: depuração
     zoom: () => camera.zoom,
     limitesZoom: () => ({ min: zoomMin, max: zoomMax }),
     larguraMundo: () => LARGURA_MUNDO,

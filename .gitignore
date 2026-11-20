@@ -1,3 +1,6 @@
 # Documentação interna de projeto (não faz parte do app entregue)
 docs/
 PLANO.md
+
+# Artefatos de Python dos testes
+__pycache__/

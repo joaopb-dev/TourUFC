@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Testes de interação do TourUFC via CDP — só asserções de DOM (nada de estado interno)."""
 import asyncio
+import datetime
 import json
 import os
 import re
@@ -80,13 +81,34 @@ async def main():
                 break
         print(f'      (app pronto: {prontos} pins posicionados)')
 
+        # PRJ-WEB-009: o badge conta eventos futuros. O evento de referência é
+        # placeholder e envelhece — a expectativa sai do conteúdo servido, com
+        # a mesma regra de eventoFuturo (js/data.js), para a suíte não vencer
+        # junto com o calendário.
+        area_id = await avaliar("return window.__tour.estado.areaAtual.id;")
+        dados = json.loads(urllib.request.urlopen(URL.rstrip('/') + '/data/locais.json').read())
+
+        def evento_futuro(evento):
+            fim = evento.get('fim') or evento.get('inicio')
+            if not fim:
+                return False
+            fim_dia = datetime.datetime.fromisoformat(fim)
+            limite = fim_dia + datetime.timedelta(hours=23, minutes=59, seconds=59)
+            return limite >= datetime.datetime.now()
+
+        da_area = [l for l in dados['locais'] if l.get('area') == area_id]
+        previstos = sum(1 for l in da_area for e in (l.get('eventos') or []) if evento_futuro(e))
+        # Locais com evento futuro, na mesma ordem de abrirProximaNovidade.
+        com_evento = [l for l in da_area if any(evento_futuro(e) for e in (l.get('eventos') or []))]
+        com_evento.sort(key=lambda l: str((l.get('eventos') or [{}])[0].get('inicio')))
+
         # ---------------------------------------------------------- estado inicial
         st = json.loads(await avaliar("return JSON.stringify({pins: document.querySelectorAll('.pin').length, lista: document.querySelectorAll('.item-lista').length, chips: document.querySelectorAll('.chip').length, ficha: !document.getElementById('ficha').hidden, sino: document.querySelector('.btn-sino .badge').textContent, mapa: document.getElementById('canvas-mapa').width + 'x' + document.getElementById('canvas-mapa').height});"))
         check('pins iniciais', st['pins'], 8)
         check('itens da lista', st['lista'], 8)
         check('chips (3 + mais)', st['chips'], 4)
         check('ficha fechada no início', st['ficha'], False)
-        check('badge do sino', st['sino'], '1')
+        check('badge do sino', st['sino'], str(previstos) if previstos else '')
         centro = await avaliar(f"return {centro_js};")
         largura_canvas, altura_canvas = (int(v) for v in st['mapa'].split('x'))
         check('canvas cobre a área do mapa', (abs(largura_canvas - centro[0] * 2) <= 1, abs(altura_canvas - centro[1] * 2) <= 1), (True, True), f"{st['mapa']} vs centro {tuple(centro)}")
@@ -150,9 +172,14 @@ async def main():
 
         # ------------------------------------------------------- novidades (sino)
         await avaliar("document.querySelector('.btn-sino').click();")
-        st = json.loads(await avaliar("return JSON.stringify({titulo: document.querySelector('.ficha-titulo').textContent, badge: document.querySelector('.btn-sino .badge').hidden});"))
-        check('sino abre a próxima novidade', st['titulo'], 'Bloco das Engenharias')
-        check('badge some após ler', st['badge'], True)
+        if previstos:
+            st = json.loads(await avaliar("return JSON.stringify({titulo: document.querySelector('.ficha-titulo').textContent, badge: document.querySelector('.btn-sino .badge').hidden});"))
+            check('sino abre a próxima novidade', st['titulo'], com_evento[0]['nome'])
+            check('badge some após ler', st['badge'], True)
+        else:
+            st = json.loads(await avaliar("return JSON.stringify({aviso: !document.getElementById('aviso-mapa').hidden, texto: document.querySelector('#aviso-mapa p').textContent, badge: document.querySelector('.btn-sino .badge').hidden});"))
+            check('sino sem novidade -> aviso', (st['aviso'], 'Nenhuma novidade' in st['texto']), (True, True))
+            check('badge some após ler', st['badge'], True)
 
         # ------------------------------------------------------------- zoom
         await avaliar("document.querySelector('.bussola').click();")   # garante o estado base
@@ -175,7 +202,7 @@ async def main():
         await avaliar("[...document.querySelectorAll('.menu-areas button')].find(b=>b.textContent==='FAMED').click();")
         st = json.loads(await avaliar("return JSON.stringify({aviso: !document.getElementById('aviso-mapa').hidden, texto: document.querySelector('#aviso-mapa p').textContent, rotulo: document.querySelector('.btn-area .rotulo').textContent, botao: !document.querySelector('#aviso-mapa button').hidden});"))
         check('FAMED sem textura -> avisa', st['aviso'], True)
-        check('mensagem da área pendente', 'ainda não foi exportada' in st['texto'], True)
+        check('mensagem da área pendente', 'ainda não foi exportado' in st['texto'], True)
         check('seletor mantém a área atual', st['rotulo'], 'Engenharias')
 
         # ------------------------------------------------------- fechar ficha
